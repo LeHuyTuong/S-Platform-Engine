@@ -1,0 +1,39 @@
+services:
+  app:
+    build: .
+    container_name: platform_app
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://platform_mysql:3306/platform_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - SPRING_DATA_REDIS_HOST=platform_redis
+      - APP_DOWNLOADER_OUTPUT_DIR=/app/downloads
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+    volumes:
+      - ./yt-downloads:/app/downloads
+    depends_on:
+      - mysql
+      - redis
+
+  mysql:
+    image: mysql:8.0
+    container_name: platform_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: platform_db
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  redis:
+    image: redis:alpine
+    container_name: platform_redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  mysql_data:

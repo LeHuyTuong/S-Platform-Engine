@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <title>YouTube Downloader</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        .log-window {
+            height: 300px;
+            overflow-y: scroll;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            font-family: monospace;
+            padding: 10px;
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+
+    <div class="container mt-5">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h3 class="card-title mb-0">S-Platform</h3>
+                <span class="badge bg-light text-primary">YouTube Downloader</span>
+            </div>
+            <div class="card-body">
+
+                <!-- Cookie Upload Section -->
+                <div class="card mb-3 bg-light">
+                    <div class="card-body">
+                        <h6 class="card-title">🍪 Cookies (Optional - for private/subscription content)</h6>
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <input type="file" class="form-control" id="cookieFileInput" accept=".txt">
+                                <small class="text-muted">Export cookies from your browser using a plugin like "Get
+                                    cookies.txt"</small>
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-sm btn-primary" id="uploadCookieBtn">Upload</button>
+                                <button class="btn btn-sm btn-danger" id="deleteCookieBtn"
+                                    th:if="${hasCookies}">Delete</button>
+                                <span class="badge bg-success" th:if="${hasCookies}">✓ Active</span>
+                                <span class="badge bg-secondary" th:unless="${hasCookies}" id="cookieStatus">No
+                                    cookies</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3 g-2 bg-light p-2 rounded border mx-0">
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted mb-0">Proxy (Optional)</label>
+                        <input type="text" id="proxyInput" class="form-control form-control-sm" placeholder="http://ip:port">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted mb-0">Start Time (Optional)</label>
+                        <input type="text" id="startTimeInput" class="form-control form-control-sm" placeholder="HH:MM:SS">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted mb-0">End Time (Optional)</label>
+                        <input type="text" id="endTimeInput" class="form-control form-control-sm" placeholder="HH:MM:SS">
+                    </div>
+                </div>
+
+                <div class="row mb-3 g-2">
+                    <div class="col-md-5">
+                        <input type="text" id="urlInput" class="form-control h-100"
+                            placeholder="Enter Output URL (Video or Playlist)">
+                    </div>
+                    <div class="col-md-2" title="Select Download Type">
+                        <select id="typeSelect" class="form-select h-100">
+                            <option value="VIDEO">Video</option>
+                            <option value="AUDIO">Audio Only</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2" id="formatCol" title="Select Format">
+                        <select id="formatSelect" class="form-select h-100">
+                            <option value="mp4">MP4</option>
+                            <option value="mkv">MKV</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2" id="qualityCol" title="Select Quality">
+                        <select id="qualitySelect" class="form-select h-100">
+                            <option value="best">Best Available</option>
+                            <option value="1080">1080p</option>
+                            <option value="720">720p</option>
+                            <option value="480">480p</option>
+                        </select>
+                    </div>
+                    <div class="col-md-1">
+                        <button class="btn btn-success w-100 h-100" type="button" id="downloadBtn">Get</button>
+                    </div>
+                </div>
+                <div id="alertArea"></div>
+
+                <hr>
+
+                <!-- Job List -->
+                <h5>Recent Jobs</h5>
+                <div class="list-group" id="jobList">
+                    <th:block th:each="job : ${jobs}">
+                        <a href="#" class="list-group-item list-group-item-action job-item" th:data-id="${job.id}">
+                            <div class="d-flex w-100 justify-content-between">
+                                <div>
+                                    <h6 class="mb-1"
+                                        th:text="${job.playlistTitle != null ? job.playlistTitle : job.url}">URL</h6>
+                                    <small class="text-muted" th:if="${job.currentItem != null}">
+                                        📊 Progress: <span
+                                            th:text="${job.currentItem} + ' / ' + ${job.totalItems}">0/0</span> items
+                                    </small>
+                                    <small class="text-danger d-block" th:if="${job.errorMessage != null}"
+                                        th:text="${job.errorMessage}">Error</small>
+                                </div>
+                                <span
+                                    th:class="${'badge bg-' + (job.status == 'COMPLETED' ? 'success' : job.status == 'FAILED' ? 'danger' : job.status == 'RUNNING' ? 'primary' : 'secondary')}"
+                                    th:text="${job.status}">STATUS</span>
+                            </div>
+                            <small class="text-muted" th:text="${job.id}">ID</small>
+                        </a>
+                    </th:block>
+                </div>
+
+                <hr>
+
+                <!-- Status & Logs -->
+                <div id="statusArea" style="display:none;">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="mb-0">Job Status: <span id="currentStatus" class="badge bg-secondary">Unknown</span>
+                        </h5>
+                        <div id="playlistInfo" style="display:none;">
+                            <span class="badge bg-info" id="playlistTitle"></span>
+                            <span class="badge bg-primary" id="playlistProgress"></span>
+                        </div>
+                    </div>
+                    <div class="alert alert-danger" id="errorAlert" style="display:none;"></div>
+                    <div class="log-window" id="logWindow"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentJobId = null;
+        let pollInterval = null;
+
+        $(document).ready(function () {
+
+            // Handle UI logic for type selection
+            $('#typeSelect').change(function() {
+                var type = $(this).val();
+                var formatSelect = $('#formatSelect');
+                
+                formatSelect.empty();
+                
+                if (type === 'AUDIO') {
+                    formatSelect.append('<option value="mp3">MP3</option>');
+                    formatSelect.append('<option value="m4a">M4A</option>');
+                    $('#qualityCol').hide(); // Hide quality for audio
+                } else {
+                    formatSelect.append('<option value="mp4">MP4</option>');
+                    formatSelect.append('<option value="mkv">MKV</option>');
+                    $('#qualityCol').show(); // Show quality for video
+                }
+            });
+
+            $('#downloadBtn').click(function () {
+                let url = $('#urlInput').val();
+                let type = $('#typeSelect').val();
+                let quality = $('#qualitySelect').val();
+                let format = $('#formatSelect').val();
+                let proxy = $('#proxyInput').val();
+                let startTime = $('#startTimeInput').val();
+                let endTime = $('#endTimeInput').val();
+                
+                if (!url) return;
+
+                $.ajax({
+                    url: '/downloader/api/submit',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ 
+                        url: url,
+                        type: type,
+                        quality: quality,
+                        format: format,
+                        proxy: proxy,
+                        startTime: startTime,
+                        endTime: endTime
+                    }),
+                    success: function (job) {
+                        $('#alertArea').html('<div class="alert alert-success">Job Submitted! ID: ' + job.id + '</div>');
+                        $('#urlInput').val('');
+                        // Add to list visually (simplified)
+                        location.reload();
+                    },
+                    error: function (err) {
+                        $('#alertArea').html('<div class="alert alert-danger">Error submitting job</div>');
+                    }
+                });
+            });
+
+            // Cookie upload
+            $('#uploadCookieBtn').click(function () {
+                var fileInput = document.getElementById('cookieFileInput');
+                if (!fileInput.files[0]) {
+                    alert('Please select a cookie file');
+                    return;
+                }
+
+                var formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+
+                $.ajax({
+                    url: '/downloader/api/upload-cookies',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function (response) {
+                        alert(response.message);
+                        location.reload();
+                    },
+                    error: function (err) {
+                        alert('Failed to upload cookies');
+                    }
+                });
+            });
+
+            // Cookie delete
+            $('#deleteCookieBtn').click(function () {
+                if (!confirm('Delete cookies file?')) return;
+
+                $.ajax({
+                    url: '/downloader/api/cookies',
+                    type: 'DELETE',
+                    success: function (response) {
+                        alert(response.message);
+                        location.reload();
+                    },
+                    error: function (err) {
+                        alert('Failed to delete cookies');
+                    }
+                });
+            });
+
+            // Event delegation for job items
+            $('#jobList').on('click', '.job-item', function (e) {
+                e.preventDefault();
+                var jobId = $(this).data('id');
+                selectJob(jobId);
+            });
+        });
+
+        function selectJob(id) {
+            currentJobId = id;
+            $('#statusArea').show();
+            $('#logWindow').html('Loading...');
+
+            if (pollInterval) clearInterval(pollInterval);
+            pollJob(); // immediate
+            pollInterval = setInterval(pollJob, 2000);
+        }
+
+        function pollJob() {
+            if (!currentJobId) return;
+            $.get('/downloader/api/status/' + currentJobId, function (job) {
+                $('#currentStatus').text(job.status);
+
+                // Show playlist info if available
+                if (job.playlistTitle) {
+                    $('#playlistTitle').text(job.playlistTitle);
+                    $('#playlistInfo').show();
+                }
+
+                if (job.currentItem && job.totalItems) {
+                    $('#playlistProgress').text(job.currentItem + ' / ' + job.totalItems);
+                    $('#playlistInfo').show();
+                }
+
+                // Show error if any
+                if (job.errorMessage) {
+                    $('#errorAlert').text(job.errorMessage).show();
+                } else {
+                    $('#errorAlert').hide();
+                }
+
+                // Update logs
+                if (job.logs) {
+                    let logHtml = job.logs.join('<br>');
+                    $('#logWindow').html(logHtml);
+                    // Scroll to bottom
+                    let win = document.getElementById('logWindow');
+                    win.scrollTop = win.scrollHeight;
+                }
+
+                // Stop polling if done
+                if (job.status === 'COMPLETED' || job.status === 'FAILED') {
+                    clearInterval(pollInterval);
+                }
+            });
+        }
+    </script>
+
+</body>
+
+</html>

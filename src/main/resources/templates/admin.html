@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>S-Platform Admin</title>
+    <meta charset="UTF-8">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --surface2: #222535;
+            --border: #2e3150;
+            --accent: #6c63ff;
+            --accent2: #ff6584;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --text: #e2e8f0;
+            --muted: #64748b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 240px;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            position: fixed;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+            z-index: 100;
+        }
+        .sidebar-logo {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sidebar-logo .icon {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+        }
+        .sidebar-logo span { font-weight: 700; font-size: 17px; }
+        .sidebar-logo small { color: var(--muted); font-size: 11px; display: block; }
+
+        .sidebar-nav { flex: 1; padding: 16px 12px; }
+        .nav-section { color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; padding: 0 12px; margin-bottom: 6px; margin-top: 16px; }
+        .nav-link {
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 12px;
+            border-radius: 8px;
+            color: var(--text);
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.15s;
+            margin-bottom: 2px;
+        }
+        .nav-link:hover, .nav-link.active { background: var(--surface2); color: #fff; }
+        .nav-link .dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--accent);
+        }
+
+        /* Main content */
+        .main { margin-left: 240px; padding: 32px; min-height: 100vh; }
+
+        /* Top bar */
+        .topbar {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 28px;
+        }
+        .topbar h1 { font-size: 22px; font-weight: 700; }
+        .topbar .badge-admin {
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            color: white; padding: 4px 12px; border-radius: 20px;
+            font-size: 12px; font-weight: 600;
+        }
+
+        /* Stats cards */
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px 22px;
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute; top: 0; left: 0; right: 0;
+            height: 2px;
+        }
+        .stat-card.purple::before { background: var(--accent); }
+        .stat-card.pink::before { background: var(--accent2); }
+        .stat-card.green::before { background: var(--success); }
+        .stat-card.orange::before { background: var(--warning); }
+
+        .stat-label { font-size: 12px; color: var(--muted); font-weight: 500; margin-bottom: 8px; }
+        .stat-value { font-size: 28px; font-weight: 700; }
+        .stat-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+        /* Content panels */
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+        .panel-header {
+            padding: 18px 22px;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .panel-title { font-size: 15px; font-weight: 600; }
+        .panel-body { padding: 20px 22px; }
+
+        /* Settings form */
+        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .form-group label {
+            font-size: 12px; font-weight: 500; color: var(--muted);
+            display: block; margin-bottom: 6px;
+        }
+        .form-group input {
+            width: 100%; padding: 9px 12px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 14px;
+            font-family: 'Inter', monospace;
+        }
+        .form-group input:focus {
+            outline: none; border-color: var(--accent);
+        }
+        .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+        /* Buttons */
+        .btn-primary-custom {
+            background: var(--accent);
+            border: none; color: white;
+            padding: 9px 20px; border-radius: 8px;
+            font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: all 0.15s;
+        }
+        .btn-primary-custom:hover { filter: brightness(1.15); }
+        .btn-danger-custom {
+            background: transparent;
+            border: 1px solid var(--danger); color: var(--danger);
+            padding: 7px 14px; border-radius: 8px;
+            font-size: 12px; cursor: pointer; transition: all 0.15s;
+        }
+        .btn-danger-custom:hover { background: var(--danger); color: white; }
+        .btn-warning-custom {
+            background: transparent;
+            border: 1px solid var(--warning); color: var(--warning);
+            padding: 7px 14px; border-radius: 8px;
+            font-size: 12px; cursor: pointer; transition: all 0.15s;
+        }
+        .btn-warning-custom:hover { background: var(--warning); color: #000; }
+
+        /* Jobs table */
+        .jobs-table { width: 100%; border-collapse: collapse; }
+        .jobs-table th {
+            font-size: 11px; font-weight: 600; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.8px;
+            padding: 10px 14px; text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        .jobs-table td {
+            padding: 12px 14px;
+            font-size: 13px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+        }
+        .jobs-table tr:last-child td { border-bottom: none; }
+        .jobs-table tr:hover td { background: var(--surface2); }
+        .jobs-table .url-cell {
+            max-width: 260px; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap;
+        }
+
+        /* Status badges */
+        .status-badge {
+            display: inline-block; padding: 3px 10px;
+            border-radius: 20px; font-size: 11px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .status-COMPLETED { background: rgba(34, 197, 94, 0.15); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3); }
+        .status-RUNNING   { background: rgba(108, 99, 255, 0.15); color: var(--accent); border: 1px solid rgba(108, 99, 255, 0.3); animation: pulse 1.5s infinite; }
+        .status-FAILED    { background: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); }
+        .status-PENDING   { background: rgba(100, 116, 139, 0.15); color: var(--muted); border: 1px solid rgba(100, 116, 139, 0.3); }
+
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+        /* Role badges */
+        .role-ADMIN     { color: var(--accent2); font-weight: 600; }
+        .role-PUBLISHER { color: var(--warning); font-weight: 600; }
+        .role-USER      { color: var(--muted); }
+
+        /* Alert */
+        .flash-msg {
+            position: fixed; bottom: 24px; right: 24px;
+            background: var(--surface); border: 1px solid var(--border);
+            border-left: 4px solid var(--success);
+            padding: 14px 20px; border-radius: 10px;
+            font-size: 14px; z-index: 999;
+            transform: translateY(100px); opacity: 0;
+            transition: all 0.3s;
+            max-width: 360px;
+        }
+        .flash-msg.show { transform: translateY(0); opacity: 1; }
+        .flash-msg.error { border-left-color: var(--danger); }
+
+        /* Disk usage bar */
+        .disk-bar {
+            height: 6px; background: var(--surface2);
+            border-radius: 3px; overflow: hidden; margin-top: 8px;
+        }
+        .disk-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width 0.5s; }
+
+        /* Back link */
+        .back-link { color: var(--muted); text-decoration: none; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+        .back-link:hover { color: var(--text); }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+    <div class="sidebar-logo">
+        <div class="icon">&#9881;</div>
+        <div>
+            <span>S-Platform</span>
+            <small>Admin Panel</small>
+        </div>
+    </div>
+    <div class="sidebar-nav">
+        <div class="nav-section">Quản lý</div>
+        <a href="/admin" class="nav-link active">
+            <div class="dot"></div> Dashboard
+        </a>
+        <a href="/downloader" class="nav-link">
+            <div class="dot" style="background: var(--success)"></div> Downloader
+        </a>
+    </div>
+</nav>
+
+<!-- Main content -->
+<main class="main">
+
+    <!-- Top bar -->
+    <div class="topbar">
+        <div>
+            <h1>Admin Dashboard</h1>
+            <a href="/downloader" class="back-link" style="margin-top:4px; display:inline-flex">← Về trang tải</a>
+        </div>
+        <span class="badge-admin">Administrator</span>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="stats-grid">
+        <div class="stat-card purple">
+            <div class="stat-label">Tổng Job</div>
+            <div class="stat-value" th:text="${jobs.size()}">0</div>
+            <div class="stat-sub">Tất cả trạng thái</div>
+        </div>
+        <div class="stat-card green">
+            <div class="stat-label">Hoàn thành</div>
+            <div class="stat-value"
+                 th:text="${#lists.size(jobs.?[status.name() == 'COMPLETED'])}">0</div>
+            <div class="stat-sub">Job thành công</div>
+        </div>
+        <div class="stat-card pink">
+            <div class="stat-label">Người dùng</div>
+            <div class="stat-value" th:text="${users.size()}">0</div>
+            <div class="stat-sub">Tài khoản đã tạo</div>
+        </div>
+        <div class="stat-card orange">
+            <div class="stat-label">Dung lượng Downloads</div>
+            <div class="stat-value">
+                <span th:text="${#numbers.formatDecimal(diskUsage, 1, 1)}">0</span> MB
+            </div>
+            <div class="disk-bar">
+                <div class="disk-fill" th:style="'width: ' + ${diskUsage > 5000 ? 100 : diskUsage / 50} + '%'"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Panel (two-column layout) -->
+    <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; margin-bottom: 24px;">
+
+        <!-- Settings -->
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">Cau hinh he thong (Hot-reload)</span>
+                <span style="font-size:11px; color: var(--success);">● Ap dung ngay, khong can restart</span>
+            </div>
+            <div class="panel-body">
+                <div class="settings-grid">
+                    <div class="form-group">
+                        <label>Sleep Interval (giay)</label>
+                        <input type="number" id="sleepInterval" th:value="${settings.sleepInterval}" min="0" max="300">
+                        <div class="hint">Nghi giua cac video. Tang len khi gap loi 429.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Concurrent Fragments</label>
+                        <input type="number" id="concurrentFragments" th:value="${settings.concurrentFragments}" min="1" max="8">
+                        <div class="hint">So luong fragment tai song song. An toan nhat = 1.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Sleep Requests (giay)</label>
+                        <input type="number" id="sleepRequests" th:value="${settings.sleepRequests}" min="0" max="60">
+                        <div class="hint">Nghi giua cac API request noi bo.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Retries (so lan thu lai)</label>
+                        <input type="number" id="retries" th:value="${settings.retries}" min="1" max="50">
+                        <div class="hint">So lan thu lai khi mat mang/timeout.</div>
+                    </div>
+                </div>
+                <div style="margin-top: 20px; display: flex; gap: 10px;">
+                    <button class="btn-primary-custom" onclick="saveSettings()">Luu cau hinh</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Storage Manager -->
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">Quan ly luu tru</span>
+            </div>
+            <div class="panel-body">
+                <p style="color: var(--muted); font-size: 13px; margin-bottom: 16px;">
+                    Xoa tat ca file video, audio da tai ve server de giai phong o cung.
+                    File cookies.txt va lich su download se duoc giu.
+                </p>
+                <div style="background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                    <div style="font-size: 12px; color: var(--danger); font-weight: 600; margin-bottom: 4px;">Canh bao</div>
+                    <div style="font-size: 12px; color: var(--muted);">Hanh dong nay khong the hoan tac. Tat ca file tai se bi xoa vinh vien.</div>
+                </div>
+                <button class="btn-danger-custom" style="width: 100%; padding: 10px;" onclick="clearStorage()">
+                    Xoa toan bo thu muc Downloads
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Jobs Table -->
+    <div class="panel">
+        <div class="panel-header">
+            <span class="panel-title">Tat ca Job tai xuong</span>
+            <span style="font-size: 12px; color: var(--muted)" th:text="${jobs.size()} + ' job'"></span>
+        </div>
+        <div class="panel-body" style="padding: 0;">
+            <div style="overflow-x: auto;">
+                <table class="jobs-table">
+                    <thead>
+                        <tr>
+                            <th>URL / Playlist</th>
+                            <th>Nguoi dung</th>
+                            <th>Dinh dang</th>
+                            <th>Trang thai</th>
+                            <th>Thoi gian</th>
+                            <th>Hanh dong</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <th:block th:each="job : ${jobs}">
+                            <tr>
+                                <td>
+                                    <div class="url-cell" th:title="${job.url}"
+                                         th:text="${job.playlistTitle != null ? job.playlistTitle : job.url}">URL</div>
+                                    <div th:if="${job.errorMessage != null}"
+                                         style="font-size: 11px; color: var(--danger); margin-top: 3px;"
+                                         th:text="${job.errorMessage}"></div>
+                                </td>
+                                <td>
+                                    <span th:if="${job.user != null}">
+                                        <span th:class="'role-' + ${job.user.role}" th:text="${job.user.email}"></span>
+                                    </span>
+                                    <span th:unless="${job.user != null}" style="color: var(--muted)">Anonymous</span>
+                                </td>
+                                <td>
+                                    <span th:if="${job.format != null}"
+                                          style="background: var(--surface2); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-family: monospace;"
+                                          th:text="${job.downloadType == 'AUDIO' ? 'AUDIO/' : 'VIDEO/'} + ${job.format?.toUpperCase()}"></span>
+                                </td>
+                                <td>
+                                    <span th:class="'status-badge status-' + ${job.status}" th:text="${job.status}">STATUS</span>
+                                </td>
+                                <td style="font-size: 12px; color: var(--muted);"
+                                    th:text="${job.createdAt != null ? #temporals.format(job.createdAt, 'dd/MM HH:mm') : '-'}">-</td>
+                                <td>
+                                    <button class="btn-danger-custom"
+                                            th:onclick="'clearJob(\'' + ${job.id} + '\')'">
+                                        Xoa file
+                                    </button>
+                                </td>
+                            </tr>
+                        </th:block>
+                        <tr th:if="${#lists.isEmpty(jobs)}">
+                            <td colspan="6" style="text-align: center; color: var(--muted); padding: 40px;">
+                                Chua co job nao.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Users Panel -->
+    <div class="panel">
+        <div class="panel-header">
+            <span class="panel-title">Danh sach nguoi dung</span>
+        </div>
+        <div class="panel-body" style="padding: 0;">
+            <table class="jobs-table">
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Phan quyen</th>
+                        <th>Trang thai</th>
+                        <th>Ngay tao</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <th:block th:each="user : ${users}">
+                        <tr>
+                            <td th:text="${user.email}">email</td>
+                            <td>
+                                <span th:class="'role-' + ${user.role}" th:text="${user.role}">ROLE</span>
+                            </td>
+                            <td>
+                                <span th:if="${user.enabled}" class="status-badge status-COMPLETED">Active</span>
+                                <span th:unless="${user.enabled}" class="status-badge status-FAILED">Disabled</span>
+                            </td>
+                            <td style="font-size: 12px; color: var(--muted);"
+                                th:text="${user.createdAt != null ? #temporals.format(user.createdAt, 'dd/MM/yyyy') : '-'}">-</td>
+                        </tr>
+                    </th:block>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</main>
+
+<!-- Flash message -->
+<div class="flash-msg" id="flashMsg"></div>
+
+<script>
+    function showFlash(msg, isError) {
+        var el = document.getElementById('flashMsg');
+        el.textContent = msg;
+        el.className = 'flash-msg' + (isError ? ' error' : '');
+        el.classList.add('show');
+        setTimeout(() => el.classList.remove('show'), 3500);
+    }
+
+    function saveSettings() {
+        var data = {
+            sleepInterval: $('#sleepInterval').val(),
+            concurrentFragments: $('#concurrentFragments').val(),
+            sleepRequests: $('#sleepRequests').val(),
+            retries: $('#retries').val()
+        };
+        $.ajax({
+            url: '/admin/api/settings',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function(resp) { showFlash('Da luu cau hinh thanh cong!', false); },
+            error: function(xhr) {
+                var msg = xhr.responseJSON ? xhr.responseJSON.message : 'Loi khi luu cau hinh';
+                showFlash(msg, true);
+            }
+        });
+    }
+
+    function clearStorage() {
+        if (!confirm('Xac nhan xoa TOAN BO file trong thu muc downloads?')) return;
+        $.ajax({
+            url: '/admin/api/storage/clear',
+            type: 'DELETE',
+            success: function(resp) { showFlash(resp.message, false); },
+            error: function(xhr) { showFlash('Loi: ' + (xhr.responseJSON?.message || 'Unknown'), true); }
+        });
+    }
+
+    function clearJob(id) {
+        if (!confirm('Xoa file cua job ' + id.substring(0, 8) + '...?')) return;
+        $.ajax({
+            url: '/admin/api/job/' + id + '/clear',
+            type: 'DELETE',
+            success: function(resp) { showFlash(resp.message, false); },
+            error: function(xhr) { showFlash('Loi: ' + (xhr.responseJSON?.message || 'Unknown'), true); }
+        });
+    }
+</script>
+
+</body>
+</html>
