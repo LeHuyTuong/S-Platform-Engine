@@ -42,6 +42,7 @@ public class Job {
 
     // Playlist tracking
     private String playlistTitle;
+    private String videoTitle;   // Tiêu đề video đơn (parse từ yt-dlp Destination log)
     private Integer totalItems;
     private Integer currentItem;
     // Download Preferences
@@ -53,7 +54,21 @@ public class Job {
     private String proxy; // HTTP(s) or SOCKS5 proxy
     private String startTime; // Clip start time HH:MM:SS
     private String endTime; // Clip end time HH:MM:SS
-    
+    private boolean cleanMetadata; // Xoá metadata cho Re-up
+
+    // SEO & Thumbnail Features
+    private boolean writeThumbnail; // Tải thumbnail gốc
+    private String watermarkText;   // Chữ watermark sẽ đóng lên thumbnail
+    private String titleTemplate;   // Mẫu tiêu đề: dùng {title}, {channel}, {date}
+
+    // Real-time download speed monitoring
+    @Transient
+    private String downloadSpeed;   // Ví dụ: "2.50MiB/s"
+    @Transient
+    private String eta;             // Ví dụ: "00:23"
+    @Transient
+    private double progressPercent; // 0.0 - 100.0
+
     private String errorMessage;
 
     public Job() {
@@ -129,6 +144,14 @@ public class Job {
 
     public void setPlaylistTitle(String playlistTitle) {
         this.playlistTitle = playlistTitle;
+    }
+
+    public String getVideoTitle() {
+        return videoTitle;
+    }
+
+    public void setVideoTitle(String videoTitle) {
+        this.videoTitle = videoTitle;
     }
 
     public Integer getTotalItems() {
@@ -210,6 +233,32 @@ public class Job {
     public void setUser(User user) {
         this.user = user;
     }
+
+    public boolean isCleanMetadata() {
+        return cleanMetadata;
+    }
+
+    public void setCleanMetadata(boolean cleanMetadata) {
+        this.cleanMetadata = cleanMetadata;
+    }
+
+    public boolean isWriteThumbnail() { return writeThumbnail; }
+    public void setWriteThumbnail(boolean writeThumbnail) { this.writeThumbnail = writeThumbnail; }
+
+    public String getWatermarkText() { return watermarkText; }
+    public void setWatermarkText(String watermarkText) { this.watermarkText = watermarkText; }
+
+    public String getTitleTemplate() { return titleTemplate; }
+    public void setTitleTemplate(String titleTemplate) { this.titleTemplate = titleTemplate; }
+
+    public String getDownloadSpeed() { return downloadSpeed; }
+    public void setDownloadSpeed(String downloadSpeed) { this.downloadSpeed = downloadSpeed; }
+
+    public String getEta() { return eta; }
+    public void setEta(String eta) { this.eta = eta; }
+
+    public double getProgressPercent() { return progressPercent; }
+    public void setProgressPercent(double progressPercent) { this.progressPercent = progressPercent; }
 
     public enum JobStatus {
         PENDING, RUNNING, COMPLETED, FAILED

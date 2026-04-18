@@ -31,9 +31,23 @@ public class DownloadController {
         this.userRepository = userRepository;
     }
 
+
     @GetMapping
-    public String index(Model model) {
-        model.addAttribute("jobs", jobManager.getAllJobs());
+    public String index(Model model, Principal principal) {
+        if (principal != null) {
+            // Người dùng đã đăng nhập - hiển thị job của họ
+            java.util.Optional<User> userOpt = userRepository.findByEmail(principal.getName());
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                model.addAttribute("jobs", jobRepository.findByUserOrderByCreatedAtDesc(user));
+                model.addAttribute("currentUser", user);
+            } else {
+                model.addAttribute("jobs", java.util.Collections.emptyList());
+            }
+        } else {
+            // Khách - hiển thị danh sách trống
+            model.addAttribute("jobs", java.util.Collections.emptyList());
+        }
         model.addAttribute("hasCookies", downloaderService.hasCookieFile());
         return "downloader";
     }
@@ -43,7 +57,7 @@ public class DownloadController {
     public ResponseEntity<?> submit(@RequestBody Map<String, String> payload, Principal principal) {
         // Find current user
         if (principal == null) {
-             return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+             return ResponseEntity.status(401).body(Map.of("message", "Bạn chưa đăng nhập"));
         }
         User user = userRepository.findByEmail(principal.getName()).orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -59,18 +73,18 @@ public class DownloadController {
         }
 
         if (jobsToday >= maxJobs) {
-            return ResponseEntity.status(429).body(Map.of("message", "Quota exceeded! You can only download " + maxJobs + " files per day."));
+            return ResponseEntity.status(429).body(Map.of("message", "Đã vượt hạn mức! Bạn chỉ có thể tải " + maxJobs + " tệp mỗi ngày."));
         }
 
         // Validate payload
         String url = payload.get("url");
         if (url == null || url.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("message", "URL is required"));
+            return ResponseEntity.badRequest().body(Map.of("message", "Vui lòng nhập URL"));
         }
         
         // Block proxy usage for normal users
         if ("USER".equals(user.getRole().name()) && payload.containsKey("proxy") && !payload.get("proxy").isEmpty()) {
-             return ResponseEntity.status(403).body(Map.of("message", "Only PUBLISHER can use custom Proxy."));
+             return ResponseEntity.status(403).body(Map.of("message", "Chỉ tài khoản PUBLISHER mới có thể dùng Proxy riêng."));
         }
 
         Job job = downloaderService.submitDownload(payload, user);
@@ -88,7 +102,7 @@ public class DownloadController {
     public Map<String, String> uploadCookies(@RequestParam("file") MultipartFile file) {
         try {
             downloaderService.saveCookieFile(file);
-            return Map.of("status", "success", "message", "Cookies uploaded successfully");
+            return Map.of("status", "success", "message", "Tải lên cookie thành công");
         } catch (Exception e) {
             return Map.of("status", "error", "message", e.getMessage());
         }
@@ -99,7 +113,7 @@ public class DownloadController {
     public Map<String, String> deleteCookies() {
         try {
             downloaderService.deleteCookieFile();
-            return Map.of("status", "success", "message", "Cookies deleted");
+            return Map.of("status", "success", "message", "Đã xoá file cookie");
         } catch (Exception e) {
             return Map.of("status", "error", "message", e.getMessage());
         }

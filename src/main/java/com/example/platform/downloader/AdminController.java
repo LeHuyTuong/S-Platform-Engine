@@ -21,17 +21,20 @@ public class AdminController {
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
     private final AppSettings appSettings;
+    private final DownloaderService downloaderService;
     private final String downloadDir;
 
     public AdminController(JobManager jobManager,
                            JobRepository jobRepository,
                            UserRepository userRepository,
                            AppSettings appSettings,
+                           DownloaderService downloaderService,
                            @Value("${app.downloader.output-dir:downloads}") String downloadDir) {
         this.jobManager = jobManager;
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
         this.appSettings = appSettings;
+        this.downloaderService = downloaderService;
         this.downloadDir = downloadDir;
     }
 
@@ -47,25 +50,30 @@ public class AdminController {
         return "admin";
     }
 
-    // API: Xoá file tải của một Job cụ thể
-    @DeleteMapping("/api/job/{id}/clear")
+    // API: Tải lại (Re-submit) một Job đã hoàn thành hoặc thất bại
+    @PostMapping("/api/job/{id}/resubmit")
     @ResponseBody
-    public ResponseEntity<?> clearJobFiles(@PathVariable String id) {
+    public ResponseEntity<?> resubmitJob(@PathVariable String id) {
         Job job = jobRepository.findById(id).orElse(null);
         if (job == null) return ResponseEntity.notFound().build();
+        if (job.getUser() == null) return ResponseEntity.badRequest().body(Map.of("message", "Job không có người dùng."));
 
         try {
-            // Tìm và xoá file liên quan đến job (search theo ID trong tên file)
-            Path dir = Paths.get(downloadDir);
-            if (Files.exists(dir)) {
-                Files.walk(dir)
-                        .filter(Files::isRegularFile)
-                        .filter(p -> p.getFileName().toString().contains("[" + id.substring(0, 8) + "]"))
-                        .forEach(p -> {
-                            try { Files.deleteIfExists(p); } catch (Exception ignored) {}
-                        });
-            }
-            return ResponseEntity.ok(Map.of("message", "Files cleared for job " + id));
+            Map<String, String> payload = new LinkedHashMap<>();
+            payload.put("url", job.getUrl());
+            payload.put("type", job.getDownloadType() != null ? job.getDownloadType() : "VIDEO");
+            payload.put("quality", job.getQuality() != null ? job.getQuality() : "best");
+            payload.put("format", job.getFormat() != null ? job.getFormat() : "mp4");
+            if (job.getProxy() != null) payload.put("proxy", job.getProxy());
+            if (job.getStartTime() != null) payload.put("startTime", job.getStartTime());
+            if (job.getEndTime() != null) payload.put("endTime", job.getEndTime());
+            payload.put("cleanMetadata", job.isCleanMetadata() ? "true" : "false");
+            payload.put("writeThumbnail", job.isWriteThumbnail() ? "true" : "false");
+            if (job.getWatermarkText() != null) payload.put("watermarkText", job.getWatermarkText());
+            if (job.getTitleTemplate() != null) payload.put("titleTemplate", job.getTitleTemplate());
+
+            Job newJob = downloaderService.submitDownload(payload, job.getUser());
+            return ResponseEntity.ok(Map.of("message", "✅ Đã tải lại thành công! Job mới: " + newJob.getId().substring(0, 8) + "..."));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("message", e.getMessage()));
         }
@@ -89,10 +97,29 @@ public class AdminController {
                     deleted++;
                 }
             }
-            return ResponseEntity.ok(Map.of("message", "Cleared " + deleted + " files from storage."));
+            return ResponseEntity.ok(Map.of("message", "Đã xoá " + deleted + " tệp khỏi hệ thống."));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("message", e.getMessage()));
         }
+    }
+
+    // API: Tự động lấy tiêu đề cho tất cả job chưa có title (gọi 1 lần sau deploy)
+    @PostMapping("/api/jobs/backfill-titles")
+    @ResponseBody
+    public ResponseEntity<?> backfillTitles() {
+        List<Job> jobs = jobRepository.findAll();
+        int updated = 0;
+        for (Job job : jobs) {
+            if (job.getVideoTitle() == null || job.getVideoTitle().isBlank()) {
+                String title = downloaderService.fetchVideoTitle(job.getUrl());
+                if (title != null && !title.isBlank()) {
+                    job.setVideoTitle(title);
+                    jobRepository.save(job);
+                    updated++;
+                }
+            }
+        }
+        return ResponseEntity.ok(Map.of("message", "✅ Đã cập nhật tiêu đề cho " + updated + " job."));
     }
 
     // API: Cập nhật cấu hình hệ thống (nóng - không cần restart)
@@ -109,9 +136,9 @@ public class AdminController {
             if (body.containsKey("retries"))
                 appSettings.setRetries(Integer.parseInt(body.get("retries")));
 
-            return ResponseEntity.ok(Map.of("message", "Settings updated successfully."));
+            return ResponseEntity.ok(Map.of("message", "Cấu hình đã được cập nhật thành công."));
         } catch (NumberFormatException e) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Invalid number format: " + e.getMessage()));
+            return ResponseEntity.badRequest().body(Map.of("message", "Định dạng số không hợp lệ: " + e.getMessage()));
         }
     }
 

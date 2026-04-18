@@ -1,6 +1,11 @@
 package com.example.platform.downloader;
 
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
+import jakarta.annotation.PostConstruct;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.File;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -10,6 +15,18 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @Component
 public class AppSettings {
+
+    private final String settingsPath;
+    private final ObjectMapper mapper = new ObjectMapper();
+
+    public AppSettings(@Value("${app.downloader.output-dir:downloads}") String downloadDir) {
+        this.settingsPath = downloadDir + "/settings.json";
+    }
+
+    @PostConstruct
+    public void init() {
+        load();
+    }
 
     // Số luồng tải song song (1 = chậm nhưng an toàn nhất)
     private final AtomicInteger concurrentFragments = new AtomicInteger(1);
@@ -34,9 +51,49 @@ public class AppSettings {
     public long getMaxFileSizeMb() { return maxFileSizeMb.get(); }
 
     // Setters (thread-safe, có thể gọi từ bất kỳ thread nào)
-    public void setConcurrentFragments(int v) { concurrentFragments.set(v); }
-    public void setSleepInterval(int v) { sleepInterval.set(v); }
-    public void setSleepRequests(int v) { sleepRequests.set(v); }
-    public void setRetries(int v) { retries.set(v); }
-    public void setMaxFileSizeMb(long v) { maxFileSizeMb.set(v); }
+    public void setConcurrentFragments(int v) { concurrentFragments.set(v); save(); }
+    public void setSleepInterval(int v) { sleepInterval.set(v); save(); }
+    public void setSleepRequests(int v) { sleepRequests.set(v); save(); }
+    public void setRetries(int v) { retries.set(v); save(); }
+    public void setMaxFileSizeMb(long v) { maxFileSizeMb.set(v); save(); }
+
+    private synchronized void save() {
+        try {
+            File file = new File(settingsPath);
+            if (!file.getParentFile().exists()) file.getParentFile().mkdirs();
+            Map<String, Object> data = Map.of(
+                "concurrentFragments", concurrentFragments.get(),
+                "sleepInterval", sleepInterval.get(),
+                "sleepRequests", sleepRequests.get(),
+                "retries", retries.get(),
+                "maxFileSizeMb", maxFileSizeMb.get()
+            );
+            mapper.writeValue(file, data);
+            System.out.println(">>> [AppSettings] Đã lưu cấu hình vào: " + settingsPath);
+        } catch (Exception e) {
+            System.err.println(">>> [AppSettings] Lỗi khi lưu cấu hình: " + e.getMessage());
+        }
+    }
+
+    private synchronized void load() {
+        try {
+            File file = new File(settingsPath);
+            if (file.exists()) {
+                Map<String, Object> data = mapper.readValue(file, Map.class);
+                System.out.println(">>> [AppSettings] Đang tải cấu hình từ: " + settingsPath);
+                
+                if (data.containsKey("concurrentFragments")) concurrentFragments.set(((Number) data.get("concurrentFragments")).intValue());
+                if (data.containsKey("sleepInterval")) sleepInterval.set(((Number) data.get("sleepInterval")).intValue());
+                if (data.containsKey("sleepRequests")) sleepRequests.set(((Number) data.get("sleepRequests")).intValue());
+                if (data.containsKey("retries")) retries.set(((Number) data.get("retries")).intValue());
+                if (data.containsKey("maxFileSizeMb")) maxFileSizeMb.set(((Number) data.get("maxFileSizeMb")).longValue());
+                
+                System.out.println(">>> [AppSettings] Tải cấu hình thành công: " + concurrentFragments.get() + "/" + sleepInterval.get());
+            } else {
+                System.out.println(">>> [AppSettings] Không tìm thấy file cấu hình, dùng mặc định: " + settingsPath);
+            }
+        } catch (Exception e) {
+            System.err.println(">>> [AppSettings] Lỗi khi tải cấu hình: " + e.getMessage());
+        }
+    }
 }

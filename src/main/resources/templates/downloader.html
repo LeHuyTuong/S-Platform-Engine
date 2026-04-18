@@ -2,142 +2,258 @@
 <html xmlns:th="http://www.thymeleaf.org">
 
 <head>
-    <title>YouTube Downloader</title>
+    <title>S-Platform | Trình tải Video</title>
+    <meta charset="UTF-8">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <style>
-        .log-window {
-            height: 300px;
-            overflow-y: scroll;
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-            font-family: monospace;
-            padding: 10px;
-        }
-    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" th:href="@{/css/downloader.css}">
 </head>
 
-<body class="bg-light">
+<body>
 
-    <div class="container mt-5">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <h3 class="card-title mb-0">S-Platform</h3>
-                <span class="badge bg-light text-primary">YouTube Downloader</span>
+    <div class="dl-wrapper">
+
+        <!-- Header -->
+        <div class="dl-header">
+            <div class="dl-logo">
+                <div class="dl-logo-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </div>
+                <div>
+                    <div class="dl-logo-name">S-Platform</div>
+                    <div class="dl-logo-sub">Trình tải Video chuyên nghiệp</div>
+                </div>
             </div>
-            <div class="card-body">
+            <div class="dl-header-right">
+                <span th:if="${currentUser != null}" class="dl-user-badge" th:text="${currentUser.email}">user@email.com</span>
+                <a th:if="${currentUser != null}" href="/logout" class="dl-logout-btn">Đăng xuất</a>
+                <a th:if="${currentUser == null}" href="/login" class="dl-login-btn">Đăng nhập</a>
+                <a th:if="${currentUser != null && currentUser.role.name() == 'ADMIN'}" href="/admin" class="dl-admin-btn">⚙ Admin</a>
+            </div>
+        </div>
 
-                <!-- Cookie Upload Section -->
-                <div class="card mb-3 bg-light">
-                    <div class="card-body">
-                        <h6 class="card-title">🍪 Cookies (Optional - for private/subscription content)</h6>
-                        <div class="row align-items-center">
+        <div class="dl-content">
+            <div class="dl-left">
+
+                <!-- Cookie Section -->
+                <div class="dl-card mb-4">
+                    <div class="dl-card-header">
+                        <span class="dl-card-icon">🍪</span>
+                        <span class="dl-card-title">Cookies</span>
+                        <span th:if="${hasCookies}" class="dl-badge-ok">● Đang kích hoạt</span>
+                        <span th:unless="${hasCookies}" class="dl-badge-off">Chưa có cookie</span>
+                    </div>
+                    <div class="dl-card-body">
+                        <div class="row g-2 align-items-center">
                             <div class="col-md-8">
-                                <input type="file" class="form-control" id="cookieFileInput" accept=".txt">
-                                <small class="text-muted">Export cookies from your browser using a plugin like "Get
-                                    cookies.txt"</small>
+                                <input type="file" class="form-control form-control-sm" id="cookieFileInput" accept=".txt">
+                                <div class="dl-hint">Xuất cookie từ trình duyệt bằng plugin "Get cookies.txt"</div>
                             </div>
-                            <div class="col-md-4">
-                                <button class="btn btn-sm btn-primary" id="uploadCookieBtn">Upload</button>
-                                <button class="btn btn-sm btn-danger" id="deleteCookieBtn"
-                                    th:if="${hasCookies}">Delete</button>
-                                <span class="badge bg-success" th:if="${hasCookies}">✓ Active</span>
-                                <span class="badge bg-secondary" th:unless="${hasCookies}" id="cookieStatus">No
-                                    cookies</span>
+                            <div class="col-md-4 d-flex gap-2">
+                                <button class="dl-btn dl-btn-sm dl-btn-primary" id="uploadCookieBtn">Tải lên</button>
+                                <button class="dl-btn dl-btn-sm dl-btn-danger" id="deleteCookieBtn" th:if="${hasCookies}">Xoá</button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="row mb-3 g-2 bg-light p-2 rounded border mx-0">
-                    <div class="col-md-4">
-                        <label class="form-label small text-muted mb-0">Proxy (Optional)</label>
-                        <input type="text" id="proxyInput" class="form-control form-control-sm" placeholder="http://ip:port">
+                <!-- Main Download Form -->
+                <div class="dl-card mb-4">
+                    <div class="dl-card-header">
+                        <span class="dl-card-icon">🔗</span>
+                        <span class="dl-card-title">URL Tải xuống</span>
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label small text-muted mb-0">Start Time (Optional)</label>
-                        <input type="text" id="startTimeInput" class="form-control form-control-sm" placeholder="HH:MM:SS">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label small text-muted mb-0">End Time (Optional)</label>
-                        <input type="text" id="endTimeInput" class="form-control form-control-sm" placeholder="HH:MM:SS">
+                    <div class="dl-card-body">
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <input type="text" id="urlInput" class="dl-input" placeholder="Nhập URL Video hoặc Playlist...">
+                            </div>
+                            <div class="col-md-2">
+                                <select id="typeSelect" class="dl-select">
+                                    <option value="VIDEO">Video</option>
+                                    <option value="AUDIO">Audio</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2" id="formatCol">
+                                <select id="formatSelect" class="dl-select">
+                                    <option value="mp4">MP4</option>
+                                    <option value="mkv">MKV</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2" id="qualityCol">
+                                <select id="qualitySelect" class="dl-select">
+                                    <option value="best">Tốt nhất</option>
+                                    <option value="1080">1080p</option>
+                                    <option value="720">720p</option>
+                                    <option value="480">480p</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button class="dl-btn dl-btn-primary w-100" type="button" id="downloadBtn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Tải về
+                        </button>
                     </div>
                 </div>
 
-                <div class="row mb-3 g-2">
-                    <div class="col-md-5">
-                        <input type="text" id="urlInput" class="form-control h-100"
-                            placeholder="Enter Output URL (Video or Playlist)">
+                <!-- Advanced MMO Options -->
+                <div class="dl-card mb-4">
+                    <div class="dl-card-header dl-collapsible" data-bs-toggle="collapse" data-bs-target="#advancedPanel">
+                        <span class="dl-card-icon">⚙️</span>
+                        <span class="dl-card-title">Tùy chọn MMO (Proxy, Cắt đoạn, Sạch Meta)</span>
+                        <svg class="dl-chevron ms-auto" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                     </div>
-                    <div class="col-md-2" title="Select Download Type">
-                        <select id="typeSelect" class="form-select h-100">
-                            <option value="VIDEO">Video</option>
-                            <option value="AUDIO">Audio Only</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2" id="formatCol" title="Select Format">
-                        <select id="formatSelect" class="form-select h-100">
-                            <option value="mp4">MP4</option>
-                            <option value="mkv">MKV</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2" id="qualityCol" title="Select Quality">
-                        <select id="qualitySelect" class="form-select h-100">
-                            <option value="best">Best Available</option>
-                            <option value="1080">1080p</option>
-                            <option value="720">720p</option>
-                            <option value="480">480p</option>
-                        </select>
-                    </div>
-                    <div class="col-md-1">
-                        <button class="btn btn-success w-100 h-100" type="button" id="downloadBtn">Get</button>
+                    <div class="collapse" id="advancedPanel">
+                        <div class="dl-card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="dl-label">Proxy (HTTP/SOCKS5)</label>
+                                    <input type="text" id="proxyInput" class="dl-input dl-input-sm" placeholder="http://user:pass@ip:port">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="dl-label">Bắt đầu (HH:MM:SS)</label>
+                                    <input type="text" id="startTimeInput" class="dl-input dl-input-sm" placeholder="00:00:00">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="dl-label">Kết thúc (HH:MM:SS)</label>
+                                    <input type="text" id="endTimeInput" class="dl-input dl-input-sm" placeholder="00:00:30">
+                                </div>
+                                <div class="col-12">
+                                    <label class="dl-check-label">
+                                        <input type="checkbox" id="cleanMetadataCheck" class="dl-checkbox">
+                                        <span>✨ "Sạch" Metadata — Xoá hết thông tin gốc (an toàn cho Re-up)</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
+
+                <!-- SEO & Thumbnail Section (NEW) -->
+                <div class="dl-card mb-4">
+                    <div class="dl-card-header dl-collapsible" data-bs-toggle="collapse" data-bs-target="#seoPanel">
+                        <span class="dl-card-icon">🖼️</span>
+                        <span class="dl-card-title">SEO & Thumbnail (Hàng loạt)</span>
+                        <span class="dl-badge-new ms-2">MỚI</span>
+                        <svg class="dl-chevron ms-auto" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                    <div class="collapse" id="seoPanel">
+                        <div class="dl-card-body">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="dl-check-label">
+                                        <input type="checkbox" id="writeThumbnailCheck" class="dl-checkbox">
+                                        <span>📸 Tải Thumbnail gốc (file .jpg đính kèm video)</span>
+                                    </label>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="dl-label">📝 Watermark Thumbnail</label>
+                                    <input type="text" id="watermarkInput" class="dl-input dl-input-sm" placeholder="Ví dụ: @TenKenh hoặc yourdomain.com">
+                                    <div class="dl-hint">Chữ sẽ được đóng dấu góc dưới phải ảnh thumbnail bằng FFmpeg</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="dl-label">🏷️ Mẫu tiêu đề (Title Template)</label>
+                                    <input type="text" id="titleTemplateInput" class="dl-input dl-input-sm" placeholder="{channel} - {title} [{date}]">
+                                    <div class="dl-hint">Biến có sẵn: <code>{title}</code> <code>{channel}</code> <code>{date}</code> <code>{id}</code> <code>{resolution}</code></div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="dl-seo-preview" id="seoPreview">Xem trước tên file: <em>chưa nhập mẫu...</em></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="alertArea"></div>
 
-                <hr>
-
                 <!-- Job List -->
-                <h5>Recent Jobs</h5>
-                <div class="list-group" id="jobList">
-                    <th:block th:each="job : ${jobs}">
-                        <a href="#" class="list-group-item list-group-item-action job-item" th:data-id="${job.id}">
-                            <div class="d-flex w-100 justify-content-between">
-                                <div>
-                                    <h6 class="mb-1"
-                                        th:text="${job.playlistTitle != null ? job.playlistTitle : job.url}">URL</h6>
-                                    <small class="text-muted" th:if="${job.currentItem != null}">
-                                        📊 Progress: <span
-                                            th:text="${job.currentItem} + ' / ' + ${job.totalItems}">0/0</span> items
-                                    </small>
-                                    <small class="text-danger d-block" th:if="${job.errorMessage != null}"
-                                        th:text="${job.errorMessage}">Error</small>
+                <div class="dl-card">
+                    <div class="dl-card-header">
+                        <span class="dl-card-icon">📋</span>
+                        <span class="dl-card-title">Lịch sử Job</span>
+                    </div>
+                    <div class="dl-job-list" id="jobList">
+                        <th:block th:each="job : ${jobs}">
+                            <div class="dl-job-item" th:data-id="${job.id}">
+                                <div class="dl-job-info">
+                                    <div class="dl-job-url" 
+                                        th:text="${job.videoTitle != null ? job.videoTitle : (job.playlistTitle != null ? job.playlistTitle : job.url)}"
+                                        th:title="${job.url}">Tiêu đề</div>
+                                    <div class="dl-job-meta">
+                                        <span th:text="${job.downloadType + '/' + (job.format != null ? job.format.toUpperCase() : 'mp4')}">VIDEO/MP4</span>
+                                        <span th:if="${job.currentItem != null}" th:text="'▶ ' + ${job.currentItem} + '/' + ${job.totalItems}">0/0</span>
+                                    </div>
+                                    <div class="dl-job-error" th:if="${job.errorMessage != null}" th:text="${job.errorMessage}">Error</div>
                                 </div>
-                                <span
-                                    th:class="${'badge bg-' + (job.status == 'COMPLETED' ? 'success' : job.status == 'FAILED' ? 'danger' : job.status == 'RUNNING' ? 'primary' : 'secondary')}"
-                                    th:text="${job.status}">STATUS</span>
+                                <div>
+                                    <span class="dl-status-badge" th:classappend="${'status-' + job.status}" th:text="${job.status}">STATUS</span>
+                                </div>
                             </div>
-                            <small class="text-muted" th:text="${job.id}">ID</small>
-                        </a>
-                    </th:block>
+                        </th:block>
+                        <div th:if="${#lists.isEmpty(jobs)}" class="dl-empty">Chưa có job nào. Hãy bắt đầu tải một video!</div>
+                    </div>
                 </div>
 
-                <hr>
+            </div>
 
-                <!-- Status & Logs -->
-                <div id="statusArea" style="display:none;">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5 class="mb-0">Job Status: <span id="currentStatus" class="badge bg-secondary">Unknown</span>
-                        </h5>
-                        <div id="playlistInfo" style="display:none;">
-                            <span class="badge bg-info" id="playlistTitle"></span>
-                            <span class="badge bg-primary" id="playlistProgress"></span>
+            <!-- Right Panel: Live Status & Speed Monitor -->
+            <div class="dl-right" id="rightPanel">
+                <div class="dl-card dl-status-card mb-4" id="statusArea" style="display:none;">
+                    <div class="dl-card-header">
+                        <span class="dl-card-icon">📡</span>
+                        <span class="dl-card-title">Trạng thái Job</span>
+                        <span class="dl-status-badge" id="currentStatus">Không xác định</span>
+                    </div>
+                    <div class="dl-card-body">
+                        <!-- Progress Bar -->
+                        <div class="dl-progress-wrap">
+                            <div class="dl-progress-bar">
+                                <div class="dl-progress-fill" id="progressFill" style="width:0%"></div>
+                            </div>
+                            <span class="dl-progress-pct" id="progressPct">0%</span>
+                        </div>
+
+                        <!-- Speed & ETA (NEW) -->
+                        <div class="dl-speed-row">
+                            <div class="dl-speed-card">
+                                <div class="dl-speed-label">⚡ Tốc độ</div>
+                                <div class="dl-speed-value" id="downloadSpeed">—</div>
+                            </div>
+                            <div class="dl-speed-card">
+                                <div class="dl-speed-label">⏱ Còn lại</div>
+                                <div class="dl-speed-value" id="etaValue">—</div>
+                            </div>
+                            <div class="dl-speed-card" id="playlistInfo" style="display:none;">
+                                <div class="dl-speed-label">📁 Playlist</div>
+                                <div class="dl-speed-value" id="playlistProgress">0/0</div>
+                            </div>
+                        </div>
+
+                        <!-- Speed Chart (NEW) -->
+                        <div class="dl-chart-wrap">
+                            <canvas id="speedChart" height="110"></canvas>
                         </div>
                     </div>
-                    <div class="alert alert-danger" id="errorAlert" style="display:none;"></div>
-                    <div class="log-window" id="logWindow"></div>
                 </div>
 
+                <!-- Log Window -->
+                <div class="dl-card" id="logCard" style="display:none;">
+                    <div class="dl-card-header">
+                        <span class="dl-card-icon">🖥</span>
+                        <span class="dl-card-title">Log chi tiết</span>
+                    </div>
+                    <div class="dl-card-body" style="padding:0;">
+                        <div class="log-window" id="logWindow"></div>
+                    </div>
+                </div>
+
+                <!-- Placeholder -->
+                <div class="dl-placeholder" id="placeholder">
+                    <div class="dl-placeholder-icon">🚀</div>
+                    <div class="dl-placeholder-text">Chọn một Job trong danh sách<br>để xem trạng thái và log thời gian thực</div>
+                </div>
             </div>
         </div>
     </div>
@@ -145,165 +261,238 @@
     <script>
         let currentJobId = null;
         let pollInterval = null;
+        let speedChart = null;
+        const speedHistory = [];
+        const MAX_HISTORY = 30;
+
+        // Init Chart.js Speed Chart
+        function initSpeedChart() {
+            const ctx = document.getElementById('speedChart').getContext('2d');
+            speedChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array(MAX_HISTORY).fill(''),
+                    datasets: [{
+                        label: 'Tốc độ (MiB/s)',
+                        data: Array(MAX_HISTORY).fill(null),
+                        borderColor: '#8b5cf6',
+                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    animation: { duration: 300 },
+                    scales: {
+                        x: { display: false },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + ' MiB/s' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function updateSpeedChart(speedStr) {
+            if (!speedChart || !speedStr) return;
+            // Parse "2.50MiB/s" → 2.5
+            const match = speedStr.match(/([\d.]+)/);
+            const val = match ? parseFloat(match[1]) : null;
+            speedHistory.push(val);
+            if (speedHistory.length > MAX_HISTORY) speedHistory.shift();
+            speedChart.data.datasets[0].data = [...speedHistory];
+            speedChart.update('none');
+        }
 
         $(document).ready(function () {
+            initSpeedChart();
 
-            // Handle UI logic for type selection
-            $('#typeSelect').change(function() {
-                var type = $(this).val();
-                var formatSelect = $('#formatSelect');
-                
-                formatSelect.empty();
-                
+            // CSRF setup
+            var token = $("meta[name='_csrf']").attr("content");
+            var header = $("meta[name='_csrf_header']").attr("content");
+            if (token && header) {
+                $(document).ajaxSend(function (e, xhr) { xhr.setRequestHeader(header, token); });
+            }
+
+            // Type select change
+            $('#typeSelect').change(function () {
+                const type = $(this).val();
+                $('#formatSelect').empty();
                 if (type === 'AUDIO') {
-                    formatSelect.append('<option value="mp3">MP3</option>');
-                    formatSelect.append('<option value="m4a">M4A</option>');
-                    $('#qualityCol').hide(); // Hide quality for audio
+                    $('#formatSelect').append('<option value="mp3">MP3</option><option value="m4a">M4A</option>');
+                    $('#qualityCol').hide();
                 } else {
-                    formatSelect.append('<option value="mp4">MP4</option>');
-                    formatSelect.append('<option value="mkv">MKV</option>');
-                    $('#qualityCol').show(); // Show quality for video
+                    $('#formatSelect').append('<option value="mp4">MP4</option><option value="mkv">MKV</option>');
+                    $('#qualityCol').show();
                 }
             });
 
+            // Title template live preview
+            $('#titleTemplateInput').on('input', function () {
+                const tpl = $(this).val();
+                if (tpl) {
+                    const preview = tpl
+                        .replace('{title}', 'Tên video')
+                        .replace('{channel}', 'TênKênh')
+                        .replace('{date}', '20241231')
+                        .replace('{id}', 'abc123')
+                        .replace('{resolution}', '1080p');
+                    $('#seoPreview em').text(preview + '.mp4');
+                } else {
+                    $('#seoPreview em').text('chưa nhập mẫu...');
+                }
+            });
+
+            // Download button
             $('#downloadBtn').click(function () {
-                let url = $('#urlInput').val();
-                let type = $('#typeSelect').val();
-                let quality = $('#qualitySelect').val();
-                let format = $('#formatSelect').val();
-                let proxy = $('#proxyInput').val();
-                let startTime = $('#startTimeInput').val();
-                let endTime = $('#endTimeInput').val();
-                
-                if (!url) return;
+                let url = $('#urlInput').val().trim();
+                if (!url) {
+                    showAlert('Vui lòng nhập URL!', 'danger');
+                    return;
+                }
+
+                $(this).prop('disabled', true).text('Đang gửi...');
 
                 $.ajax({
                     url: '/downloader/api/submit',
                     type: 'POST',
                     contentType: 'application/json',
-                    data: JSON.stringify({ 
+                    data: JSON.stringify({
                         url: url,
-                        type: type,
-                        quality: quality,
-                        format: format,
-                        proxy: proxy,
-                        startTime: startTime,
-                        endTime: endTime
+                        type: $('#typeSelect').val(),
+                        quality: $('#qualitySelect').val(),
+                        format: $('#formatSelect').val(),
+                        proxy: $('#proxyInput').val(),
+                        startTime: $('#startTimeInput').val(),
+                        endTime: $('#endTimeInput').val(),
+                        cleanMetadata: $('#cleanMetadataCheck').is(':checked') ? 'true' : 'false',
+                        writeThumbnail: $('#writeThumbnailCheck').is(':checked') ? 'true' : 'false',
+                        watermarkText: $('#watermarkInput').val(),
+                        titleTemplate: $('#titleTemplateInput').val()
                     }),
                     success: function (job) {
-                        $('#alertArea').html('<div class="alert alert-success">Job Submitted! ID: ' + job.id + '</div>');
+                        showAlert('✅ Đã tạo Job thành công! ID: ' + job.id, 'success');
                         $('#urlInput').val('');
-                        // Add to list visually (simplified)
-                        location.reload();
+                        setTimeout(() => location.reload(), 1200);
                     },
                     error: function (err) {
-                        $('#alertArea').html('<div class="alert alert-danger">Error submitting job</div>');
+                        const msg = err.responseJSON ? err.responseJSON.message : 'Lỗi khi tạo Job';
+                        showAlert('❌ ' + msg, 'danger');
+                        $('#downloadBtn').prop('disabled', false).text('Tải về');
                     }
                 });
             });
 
-            // Cookie upload
+            // Cookie handlers
             $('#uploadCookieBtn').click(function () {
                 var fileInput = document.getElementById('cookieFileInput');
-                if (!fileInput.files[0]) {
-                    alert('Please select a cookie file');
-                    return;
-                }
-
+                if (!fileInput.files[0]) { alert('Vui lòng chọn file cookie'); return; }
                 var formData = new FormData();
                 formData.append('file', fileInput.files[0]);
-
                 $.ajax({
-                    url: '/downloader/api/upload-cookies',
-                    type: 'POST',
-                    data: formData,
-                    processData: false,
-                    contentType: false,
-                    success: function (response) {
-                        alert(response.message);
-                        location.reload();
-                    },
-                    error: function (err) {
-                        alert('Failed to upload cookies');
-                    }
+                    url: '/downloader/api/upload-cookies', type: 'POST',
+                    data: formData, processData: false, contentType: false,
+                    success: function (r) { alert(r.message); location.reload(); },
+                    error: function () { alert('Tải lên cookie thất bại'); }
                 });
             });
 
-            // Cookie delete
             $('#deleteCookieBtn').click(function () {
-                if (!confirm('Delete cookies file?')) return;
-
+                if (!confirm('Xoá file cookie?')) return;
                 $.ajax({
-                    url: '/downloader/api/cookies',
-                    type: 'DELETE',
-                    success: function (response) {
-                        alert(response.message);
-                        location.reload();
-                    },
-                    error: function (err) {
-                        alert('Failed to delete cookies');
-                    }
+                    url: '/downloader/api/cookies', type: 'DELETE',
+                    success: function (r) { alert(r.message); location.reload(); }
                 });
             });
 
-            // Event delegation for job items
-            $('#jobList').on('click', '.job-item', function (e) {
-                e.preventDefault();
-                var jobId = $(this).data('id');
-                selectJob(jobId);
+            // Job item click
+            $('#jobList').on('click', '.dl-job-item', function () {
+                $('.dl-job-item').removeClass('active');
+                $(this).addClass('active');
+                selectJob($(this).data('id'));
             });
         });
 
+        function showAlert(msg, type) {
+            $('#alertArea').html('<div class="dl-alert dl-alert-' + type + '">' + msg + '</div>');
+            setTimeout(() => $('#alertArea').html(''), 4000);
+        }
+
         function selectJob(id) {
             currentJobId = id;
-            $('#statusArea').show();
-            $('#logWindow').html('Loading...');
-
+            $('#statusArea, #logCard').show();
+            $('#placeholder').hide();
+            $('#logWindow').html('<span style="color:#64748b">Đang tải log...</span>');
             if (pollInterval) clearInterval(pollInterval);
-            pollJob(); // immediate
-            pollInterval = setInterval(pollJob, 2000);
+            pollJob();
+            pollInterval = setInterval(pollJob, 1500);
         }
 
         function pollJob() {
             if (!currentJobId) return;
             $.get('/downloader/api/status/' + currentJobId, function (job) {
-                $('#currentStatus').text(job.status);
+                // Status badge
+                const statusEl = $('#currentStatus');
+                statusEl.text(job.status).attr('class', 'dl-status-badge status-' + job.status);
 
-                // Show playlist info if available
-                if (job.playlistTitle) {
-                    $('#playlistTitle').text(job.playlistTitle);
-                    $('#playlistInfo').show();
+                // Update job title in list if we got it
+                if (job.videoTitle) {
+                    $('.dl-job-item[data-id="' + currentJobId + '"] .dl-job-url').text(job.videoTitle);
                 }
 
+                // Progress bar
+                const pct = job.progressPercent || 0;
+                $('#progressFill').css('width', pct + '%');
+                $('#progressPct').text(Math.round(pct) + '%');
+
+                // Speed & ETA
+                if (job.downloadSpeed) {
+                    $('#downloadSpeed').text(job.downloadSpeed);
+                    updateSpeedChart(job.downloadSpeed);
+                }
+                if (job.eta) $('#etaValue').text(job.eta);
+
+                // Playlist info
                 if (job.currentItem && job.totalItems) {
                     $('#playlistProgress').text(job.currentItem + ' / ' + job.totalItems);
                     $('#playlistInfo').show();
                 }
 
-                // Show error if any
-                if (job.errorMessage) {
-                    $('#errorAlert').text(job.errorMessage).show();
-                } else {
-                    $('#errorAlert').hide();
-                }
-
-                // Update logs
-                if (job.logs) {
-                    let logHtml = job.logs.join('<br>');
-                    $('#logWindow').html(logHtml);
-                    // Scroll to bottom
-                    let win = document.getElementById('logWindow');
+                // Logs
+                if (job.logs && job.logs.length > 0) {
+                    const logLines = job.logs.map(l => {
+                        if (l.startsWith('ERROR') || l.startsWith('[WATERMARK] Lỗi')) return '<span style="color:#fb7185">' + l + '</span>';
+                        if (l.startsWith('[WATERMARK]')) return '<span style="color:#34d399">' + l + '</span>';
+                        if (l.includes('100%') || l.includes('Finished')) return '<span style="color:#34d399">' + l + '</span>';
+                        if (l.startsWith('[download]') && l.includes('%')) return '<span style="color:#8b5cf6">' + l + '</span>';
+                        return l;
+                    }).join('\n');
+                    $('#logWindow').html('<pre>' + logLines + '</pre>');
+                    const win = document.getElementById('logWindow');
                     win.scrollTop = win.scrollHeight;
                 }
 
-                // Stop polling if done
+                // Finish polling
                 if (job.status === 'COMPLETED' || job.status === 'FAILED') {
                     clearInterval(pollInterval);
+                    $('#progressFill').css('width', job.status === 'COMPLETED' ? '100%' : $('#progressFill').css('width'));
+                    if (job.status === 'COMPLETED') {
+                        $('#progressPct').text('100%');
+                        $('#downloadSpeed').text('Hoàn thành ✅');
+                        $('#etaValue').text('—');
+                    }
                 }
             });
         }
     </script>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 
 </html>

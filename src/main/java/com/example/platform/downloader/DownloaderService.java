@@ -7,24 +7,33 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class DownloaderService {
 
     private final JobManager jobManager;
+    private final JobRepository jobRepository;
     private final String downloadDir;
     private final String cookieFile;
     private final AppSettings appSettings;
 
     public DownloaderService(JobManager jobManager,
+            JobRepository jobRepository,
             @Value("${app.downloader.output-dir:downloads}") String downloadDir,
             AppSettings appSettings) {
         this.jobManager = jobManager;
+        this.jobRepository = jobRepository;
         this.downloadDir = downloadDir;
         this.cookieFile = downloadDir + "/cookies.txt";
         this.appSettings = appSettings;
@@ -32,6 +41,10 @@ public class DownloaderService {
 
     public Job submitDownload(java.util.Map<String, String> payload, com.example.platform.modules.user.domain.User currentUser) {
         String url = payload.get("url");
+
+        // Fetch title trước khi submit để hiển thị ngay lập tức
+        String preTitle = fetchVideoTitle(url);
+
         return jobManager.submitJob(url, currentUser, job -> {
             job.setDownloadType(payload.getOrDefault("type", "VIDEO"));
             job.setQuality(payload.getOrDefault("quality", "best"));
@@ -39,9 +52,49 @@ public class DownloaderService {
             job.setProxy(payload.get("proxy"));
             job.setStartTime(payload.get("startTime"));
             job.setEndTime(payload.get("endTime"));
+            job.setCleanMetadata("true".equalsIgnoreCase(payload.get("cleanMetadata")));
+            // SEO & Thumbnail features
+            job.setWriteThumbnail("true".equalsIgnoreCase(payload.get("writeThumbnail")));
+            job.setWatermarkText(payload.get("watermarkText"));
+            job.setTitleTemplate(payload.get("titleTemplate"));
+            // Set title sớm nhất có thể để hiển thị trong danh sách
+            if (preTitle != null && !preTitle.isBlank()) {
+                job.setVideoTitle(preTitle);
+                jobRepository.save(job); // Lưu ngay vào DB
+            }
             executeDownload(job);
         });
     }
+
+    /**
+     * Gọi YouTube oEmbed API để lấy tiêu đề video - không cần API key, rất nhanh.
+     * Trả về null nếu URL không phải YouTube hoặc gặp lỗi.
+     */
+    public String fetchVideoTitle(String inputUrl) {
+        try {
+            String encodedUrl = URLEncoder.encode(inputUrl, StandardCharsets.UTF_8);
+            String apiUrl = "https://www.youtube.com/oembed?url=" + encodedUrl + "&format=json";
+            HttpURLConnection conn = (HttpURLConnection) new URL(apiUrl).openConnection();
+            conn.setConnectTimeout(4000);
+            conn.setReadTimeout(4000);
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+            if (conn.getResponseCode() == 200) {
+                StringBuilder sb = new StringBuilder();
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = br.readLine()) != null) sb.append(line);
+                }
+                // Parse "title":"VALUE" from JSON (no extra dep needed)
+                Matcher m = Pattern.compile("\"title\":\"([^\"]+)\"").matcher(sb);
+                if (m.find()) return m.group(1)
+                    .replace("\\u0026", "&")
+                    .replace("\\u003c", "<")
+                    .replace("\\u003e", ">");
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
 
     public boolean hasCookieFile() {
         return new File(cookieFile).exists();
@@ -114,6 +167,12 @@ public class DownloaderService {
             command.add("--sub-langs");
             command.add("vi,en.*");
             
+            // MMO Features: Strip all metadata for Re-up safety if requested
+            if (job.isCleanMetadata()) {
+                command.add("--postprocessor-args");
+                command.add("ffmpeg:-map_metadata -1");
+            }
+            
             // Cut specific time sections if provided
             if (job.getStartTime() != null && !job.getStartTime().isEmpty() &&
                 job.getEndTime() != null && !job.getEndTime().isEmpty()) {
@@ -135,9 +194,29 @@ public class DownloaderService {
             command.add("--continue");
             command.add("--no-overwrites");
 
-            // Khuôn mẫu tên file xuất ra (hỗ trợ playlist)
+            // Khuôn mẫu tên file xuất ra (hỗ trợ SEO Title Template và playlist)
+            String outputTemplate;
+            if (job.getTitleTemplate() != null && !job.getTitleTemplate().isEmpty()) {
+                // Dùng mẫu tiêu đề tuỳ chỉnh: {title}, {channel}, {id} → %(title)s, %(channel)s, %(id)s
+                String tpl = job.getTitleTemplate()
+                    .replace("{title}", "%(title)s")
+                    .replace("{channel}", "%(channel)s")
+                    .replace("{date}", "%(upload_date)s")
+                    .replace("{id}", "%(id)s")
+                    .replace("{resolution}", "%(height)sp");
+                outputTemplate = downloadDir + "/%(playlist)s/" + tpl + " [%(id)s].%(ext)s";
+            } else {
+                outputTemplate = downloadDir + "/%(playlist)s/%(playlist_index)03d - %(title).200B [%(id)s].%(ext)s";
+            }
             command.add("-o");
-            command.add(downloadDir + "/%(playlist)s/%(playlist_index)03d - %(title).200B [%(id)s].%(ext)s");
+            command.add(outputTemplate);
+
+            // Thumbnail: luôn tải nếu writeThumbnail hoặc có watermark
+            if (job.isWriteThumbnail() || (job.getWatermarkText() != null && !job.getWatermarkText().isEmpty())) {
+                command.add("--write-thumbnail");
+                command.add("--convert-thumbnails");
+                command.add("jpg");
+            }
 
             // Cấu hình hiệu năng & chống chặn - đọc từ AppSettings (có thể thay đổi nóng từ Admin)
             command.add("--concurrent-fragments");
@@ -193,6 +272,50 @@ public class DownloaderService {
                         job.setPlaylistTitle(title);
                     }
 
+                    // Trích xuất tiêu đề video từ dòng Destination (tên file thực tế)
+                    // Ví dụ: [download] Destination: downloads/NA/001 - Ten Video [abc123].mp4
+                    if (line.startsWith("[download] Destination:") && job.getVideoTitle() == null) {
+                        try {
+                            String dest = line.substring("[download] Destination:".length()).trim();
+                            String filename = Paths.get(dest).getFileName().toString();
+                            // Xoá phần extension: .mp4, .mkv, ...
+                            int lastDot = filename.lastIndexOf('.');
+                            if (lastDot > 0) filename = filename.substring(0, lastDot);
+                            // Xoá phần [id] ở cuối: " [xxxxxxxx]"
+                            filename = filename.replaceAll("\\s*\\[[A-Za-z0-9_\\-]+\\]\\s*$", "").trim();
+                            // Xoá prefix số thứ tự playlist "001 - " 
+                            filename = filename.replaceAll("^\\d{1,3}\\s*-\\s*", "").trim();
+                            if (!filename.isEmpty()) {
+                                job.setVideoTitle(filename);
+                            }
+                        } catch (Exception ignored) {}
+                    }
+
+                    // Phân tích tốc độ tải và ETA thời gian thực từ yt-dlp output
+                    // Định dạng mẫu: [download]  45.3% of 123.45MiB at 2.50MiB/s ETA 00:23
+                    if (line.startsWith("[download]") && line.contains("% of") && line.contains(" at ")) {
+                        try {
+                            // Trích xuất phần trăm
+                            String pctStr = line.substring(line.indexOf(']') + 1, line.indexOf('%')).trim();
+                            job.setProgressPercent(Double.parseDouble(pctStr));
+                            
+                            // Trích xuất tốc độ (at X.XXMiB/s)
+                            int atIdx = line.indexOf(" at ");
+                            if (atIdx != -1) {
+                                String afterAt = line.substring(atIdx + 4).trim();
+                                String speed = afterAt.split(" ")[0];
+                                job.setDownloadSpeed(speed);
+                            }
+                            
+                            // Trích xuất ETA
+                            int etaIdx = line.indexOf("ETA ");
+                            if (etaIdx != -1) {
+                                String etaVal = line.substring(etaIdx + 4).trim().split(" ")[0];
+                                job.setEta(etaVal);
+                            }
+                        } catch (Exception ignored) {}
+                    }
+
                     // Phân tích quá trình tiến độ (Progress): ví dụ "[download] Downloading item X of Y"
                     if (line.contains("[download] Downloading item ")) {
                         try {
@@ -245,6 +368,11 @@ public class DownloaderService {
             job.setErrorMessage(e.getMessage());
             throw new RuntimeException(e);
         }
+
+        // Sau khi tải xong: áp dụng watermark lên tất cả thumbnail tìm thấy trong thư mục
+        if (job.getWatermarkText() != null && !job.getWatermarkText().isEmpty()) {
+            applyWatermarkToThumbnails(job);
+        }
     }
 
     private void cleanUpStaleFiles(Path dir) {
@@ -263,6 +391,53 @@ public class DownloaderService {
                     });
         } catch (Exception e) {
             // Lỗi xóa dọn file rác không quá nghiêm trọng (Non-critical cleanup)
+        }
+    }
+
+    /**
+     * Đóng dấu watermark (chữ) lên tất cả file .jpg thumbnail trong thư mục tải.
+     * Sử dụng FFmpeg drawtext filter để an toàn và nhẹ.
+     */
+    private void applyWatermarkToThumbnails(Job job) {
+        try {
+            String watermark = job.getWatermarkText();
+            if (watermark == null || watermark.isEmpty()) return;
+
+            Files.walk(Paths.get(downloadDir))
+                .filter(Files::isRegularFile)
+                .filter(p -> p.getFileName().toString().toLowerCase().endsWith(".jpg"))
+                .forEach(thumbnailPath -> {
+                    try {
+                        String inPath = thumbnailPath.toAbsolutePath().toString();
+                        String outPath = inPath.replace(".jpg", "_wm.jpg");
+
+                        // FFmpeg: vẽ chữ watermark góc dưới phải, nền đen mờ
+                        List<String> cmd = new ArrayList<>();
+                        cmd.add("ffmpeg");
+                        cmd.add("-y");
+                        cmd.add("-i"); cmd.add(inPath);
+                        cmd.add("-vf");
+                        cmd.add("drawtext=text='" + watermark.replace("'", "\\'") + "'" +
+                                ":fontsize=36:fontcolor=white:x=w-tw-20:y=h-th-20" +
+                                ":box=1:boxcolor=black@0.55:boxborderw=8");
+                        cmd.add("-q:v"); cmd.add("2");
+                        cmd.add(outPath);
+
+                        Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
+                        p.waitFor();
+
+                        // Thay thế file gốc bằng file đã watermark
+                        if (new File(outPath).exists()) {
+                            Files.deleteIfExists(thumbnailPath);
+                            new File(outPath).renameTo(thumbnailPath.toFile());
+                            job.addLog("[WATERMARK] Đã đóng dấu thumbnail: " + thumbnailPath.getFileName());
+                        }
+                    } catch (Exception e) {
+                        job.addLog("[WATERMARK] Lỗi: " + e.getMessage());
+                    }
+                });
+        } catch (Exception e) {
+            job.addLog("[WATERMARK] Không thể quét thư mục thumbnail: " + e.getMessage());
         }
     }
 }
