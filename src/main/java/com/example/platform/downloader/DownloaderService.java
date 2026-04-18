@@ -1,11 +1,18 @@
 package com.example.platform.downloader;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -15,9 +22,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import com.example.platform.modules.user.domain.User;
 
 @Service
 public class DownloaderService {
@@ -25,7 +36,6 @@ public class DownloaderService {
     private final JobManager jobManager;
     private final JobRepository jobRepository;
     private final String downloadDir;
-    private final String cookieFile;
     private final AppSettings appSettings;
 
     public DownloaderService(JobManager jobManager,
@@ -35,40 +45,159 @@ public class DownloaderService {
         this.jobManager = jobManager;
         this.jobRepository = jobRepository;
         this.downloadDir = downloadDir;
-        this.cookieFile = downloadDir + "/cookies.txt";
         this.appSettings = appSettings;
     }
 
-    public Job submitDownload(java.util.Map<String, String> payload, com.example.platform.modules.user.domain.User currentUser) {
+    // ─────────────────────────────────────────────────────────────────────────
+    // Cookie management — per-user isolation (Feature 2 + Issue 2)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** Đường dẫn cookie file riêng của từng user */
+    private String cookieFilePath(User user) {
+        return downloadDir + "/" + user.getId() + "/cookies.txt";
+    }
+
+    public boolean hasCookieFile(User user) {
+        return new File(cookieFilePath(user)).exists();
+    }
+
+    public void saveCookieFile(MultipartFile file, User user) throws Exception {
+        Path userDir = Paths.get(downloadDir, user.getId().toString());
+        if (!Files.exists(userDir)) {
+            Files.createDirectories(userDir);
+        }
+        file.transferTo(new File(cookieFilePath(user)));
+    }
+
+    public void deleteCookieFile(User user) {
+        new File(cookieFilePath(user)).delete();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Submit download
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Submit một download job.
+     *
+     * Bug 2 Fix: tất cả field (type/quality/format/title) được set trong
+     * setupJob lambda chạy SYNC trên HTTP thread TRƯỚC khi JobManager gọi
+     * jobRepository.save(). Đảm bảo DB record luôn có đầy đủ thông tin.
+     *
+     * Bug 5 Fix: fetchVideoTitle() giờ chạy bên trong executeDownload (executor
+     * thread), không còn block HTTP thread ~4 giây nữa.
+     */
+    public Job submitDownload(Map<String, String> payload, User currentUser) {
         String url = payload.get("url");
 
-        // Fetch title trước khi submit để hiển thị ngay lập tức
-        String preTitle = fetchVideoTitle(url);
+        // Dùng array trick để capture job reference cho executeJob lambda
+        Job[] jobRef = new Job[1];
 
-        return jobManager.submitJob(url, currentUser, job -> {
-            job.setDownloadType(payload.getOrDefault("type", "VIDEO"));
-            job.setQuality(payload.getOrDefault("quality", "best"));
-            job.setFormat(payload.getOrDefault("format", "mp4"));
-            job.setProxy(payload.get("proxy"));
-            job.setStartTime(payload.get("startTime"));
-            job.setEndTime(payload.get("endTime"));
-            job.setCleanMetadata("true".equalsIgnoreCase(payload.get("cleanMetadata")));
-            // SEO & Thumbnail features
-            job.setWriteThumbnail("true".equalsIgnoreCase(payload.get("writeThumbnail")));
-            job.setWatermarkText(payload.get("watermarkText"));
-            job.setTitleTemplate(payload.get("titleTemplate"));
-            // Set title sớm nhất có thể để hiển thị trong danh sách
-            if (preTitle != null && !preTitle.isBlank()) {
-                job.setVideoTitle(preTitle);
-                jobRepository.save(job); // Lưu ngay vào DB
-            }
-            executeDownload(job);
-        });
+        return jobManager.submitJob(url, currentUser,
+                // === setupJob: chạy SYNC trên HTTP thread — set field trước khi DB save ===
+                job -> {
+                    job.setDownloadType(payload.getOrDefault("type", "VIDEO"));
+                    job.setQuality(payload.getOrDefault("quality", "best"));
+                    job.setFormat(payload.getOrDefault("format", "mp4"));
+                    job.setProxy(payload.get("proxy"));
+                    job.setStartTime(payload.get("startTime"));
+                    job.setEndTime(payload.get("endTime"));
+                    job.setCleanMetadata("true".equalsIgnoreCase(payload.get("cleanMetadata")));
+                    job.setWriteThumbnail("true".equalsIgnoreCase(payload.get("writeThumbnail")));
+                    job.setWatermarkText(payload.get("watermarkText"));
+                    job.setTitleTemplate(payload.get("titleTemplate"));
+                    jobRef[0] = job; // capture reference cho executeJob
+                },
+                // === executeJob: chạy ASYNC trong executor thread ===
+                () -> executeDownload(jobRef[0])
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // File listing & serving (Feature 1)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Liệt kê các file đã tải về trong folder của job.
+     * Chỉ trả về file thực (video/audio/thumbnail), bỏ qua tmp files.
+     */
+    public List<Map<String, String>> listJobFiles(String jobId) {
+        Path jobDir = Paths.get(downloadDir, jobId);
+        if (!Files.exists(jobDir)) {
+            return Collections.emptyList();
+        }
+        List<Map<String, String>> files = new ArrayList<>();
+        try {
+            Files.walk(jobDir)
+                    .filter(Files::isRegularFile)
+                    .filter(p -> {
+                        String name = p.getFileName().toString().toLowerCase();
+                        // Bỏ qua file tạm và archive
+                        return !name.endsWith(".part") && !name.endsWith(".ytdl")
+                                && !name.equals("downloaded.txt");
+                    })
+                    .forEach(p -> {
+                        String relative = jobDir.relativize(p).toString().replace("\\", "/");
+                        long sizeBytes;
+                        try { sizeBytes = Files.size(p); } catch (IOException e) { sizeBytes = 0; }
+                        files.add(Map.of(
+                                "name", p.getFileName().toString(),
+                                "path", relative,
+                                "size", String.valueOf(sizeBytes)
+                        ));
+                    });
+        } catch (IOException e) {
+            // Thư mục không tồn tại hoặc lỗi đọc — trả empty list
+        }
+        return files;
     }
 
     /**
-     * Gọi YouTube oEmbed API để lấy tiêu đề video - không cần API key, rất nhanh.
-     * Trả về null nếu URL không phải YouTube hoặc gặp lỗi.
+     * Stream file về client dưới dạng download attachment.
+     * Trả null nếu file không tồn tại (controller sẽ trả 404).
+     */
+    public ResponseEntity<Resource> serveFile(String jobId, String filename) throws IOException {
+        // Sanitize filename để tránh path traversal
+        String safeName = Paths.get(filename).getFileName().toString();
+        // Tìm file theo tên trong toàn bộ subfolder của jobId
+        Path jobDir = Paths.get(downloadDir, jobId);
+        if (!Files.exists(jobDir)) return null;
+
+        Path[] found = {null};
+        try {
+            Files.walk(jobDir)
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().equals(safeName))
+                    .findFirst()
+                    .ifPresent(p -> found[0] = p);
+        } catch (IOException e) {
+            return null;
+        }
+
+        if (found[0] == null) return null;
+
+        Path filePath = found[0];
+        InputStream is = Files.newInputStream(filePath);
+        InputStreamResource resource = new InputStreamResource(is);
+
+        String contentType = Files.probeContentType(filePath);
+        if (contentType == null) contentType = "application/octet-stream";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + safeName + "\"")
+                .contentType(MediaType.parseMediaType(contentType))
+                .contentLength(Files.size(filePath))
+                .body(resource);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Title fetching
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Gọi YouTube oEmbed API để lấy tiêu đề video.
+     * Không cần API key. Trả về null nếu lỗi hoặc không phải YouTube.
      */
     public String fetchVideoTitle(String inputUrl) {
         try {
@@ -80,51 +209,56 @@ public class DownloaderService {
             conn.setRequestProperty("User-Agent", "Mozilla/5.0");
             if (conn.getResponseCode() == 200) {
                 StringBuilder sb = new StringBuilder();
-                try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                try (BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
                     String line;
                     while ((line = br.readLine()) != null) sb.append(line);
                 }
-                // Parse "title":"VALUE" from JSON (no extra dep needed)
                 Matcher m = Pattern.compile("\"title\":\"([^\"]+)\"").matcher(sb);
                 if (m.find()) return m.group(1)
-                    .replace("\\u0026", "&")
-                    .replace("\\u003c", "<")
-                    .replace("\\u003e", ">");
+                        .replace("\\u0026", "&")
+                        .replace("\\u003c", "<")
+                        .replace("\\u003e", ">");
             }
         } catch (Exception ignored) {}
         return null;
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Core download logic
+    // ─────────────────────────────────────────────────────────────────────────
 
-    public boolean hasCookieFile() {
-        return new File(cookieFile).exists();
-    }
-
-    public void saveCookieFile(MultipartFile file) throws Exception {
-        Path outputDataDir = Paths.get(downloadDir);
-        if (!Files.exists(outputDataDir)) {
-            Files.createDirectories(outputDataDir);
-        }
-        file.transferTo(new File(cookieFile));
-    }
-
-    public void deleteCookieFile() {
-        new File(cookieFile).delete();
-    }
-
-    // Logic thực thi quá trình tải xuống
+    /**
+     * Chạy yt-dlp để tải video/audio cho job.
+     * Mỗi job tải vào subfolder riêng downloads/{jobId}/ (fix Issue 1: stale .part)
+     * Archive file per-user để tránh skip chéo (fix Issue 2).
+     * Bug 5 Fix: fetchVideoTitle chạy ở đây (async thread), không block HTTP thread.
+     */
     public void executeDownload(Job job) {
         try {
-            Path outputDataDir = Paths.get(downloadDir);
-            if (!Files.exists(outputDataDir)) {
-                Files.createDirectories(outputDataDir);
+            // Issue 1 Fix: mỗi job có subfolder riêng để tránh .part conflict
+            Path jobOutputDir = Paths.get(downloadDir, job.getId());
+            if (!Files.exists(jobOutputDir)) {
+                Files.createDirectories(jobOutputDir);
             }
 
-            // Xoá các file tạm cũ trước khi bắt đầu tải
-            cleanUpStaleFiles(outputDataDir);
+            // Xoá .part cũ CHỈ trong subfolder của chính job này
+            cleanUpStaleFiles(jobOutputDir);
 
-            // File lưu trữ lịch sử tải để tránh tải lại (download-archive)
-            String archiveFile = downloadDir + "/downloaded.txt";
+            // Bug 5 Fix: fetch title async tại đây (đang ở executor thread)
+            if (job.getVideoTitle() == null) {
+                String title = fetchVideoTitle(job.getUrl());
+                if (title != null && !title.isBlank()) {
+                    job.setVideoTitle(title);
+                    jobRepository.save(job);
+                }
+            }
+
+            // Issue 2 Fix: archive file riêng theo userId để tránh skip chéo giữa users
+            String userId = job.getUser() != null ? job.getUser().getId().toString() : "shared";
+            Path userDir = Paths.get(downloadDir, userId);
+            if (!Files.exists(userDir)) Files.createDirectories(userDir);
+            String archiveFile = userDir.resolve("downloaded.txt").toString();
 
             List<String> command = new ArrayList<>();
             command.add("yt-dlp");
@@ -145,7 +279,6 @@ public class DownloaderService {
                 if (resolution == null || "best".equalsIgnoreCase(resolution)) {
                     command.add("bv*+ba/b");
                 } else {
-                    // Thử độ phân giải chính xác (ví dụ 1080) hoặc dùng cái tốt nhất nếu không có
                     command.add("bv*[height<=" + resolution + "]+ba/b");
                 }
 
@@ -162,17 +295,17 @@ public class DownloaderService {
             command.add("--write-thumbnail");
             command.add("--convert-thumbnails");
             command.add("jpg");
-            
+
             command.add("--embed-subs");
             command.add("--sub-langs");
             command.add("vi,en.*");
-            
+
             // MMO Features: Strip all metadata for Re-up safety if requested
             if (job.isCleanMetadata()) {
                 command.add("--postprocessor-args");
                 command.add("ffmpeg:-map_metadata -1");
             }
-            
+
             // Cut specific time sections if provided
             if (job.getStartTime() != null && !job.getStartTime().isEmpty() &&
                 job.getEndTime() != null && !job.getEndTime().isEmpty()) {
@@ -194,19 +327,19 @@ public class DownloaderService {
             command.add("--continue");
             command.add("--no-overwrites");
 
-            // Khuôn mẫu tên file xuất ra (hỗ trợ SEO Title Template và playlist)
+            // Issue 1 Fix: output vào subfolder riêng của job
+            String jobDirStr = jobOutputDir.toString();
             String outputTemplate;
             if (job.getTitleTemplate() != null && !job.getTitleTemplate().isEmpty()) {
-                // Dùng mẫu tiêu đề tuỳ chỉnh: {title}, {channel}, {id} → %(title)s, %(channel)s, %(id)s
                 String tpl = job.getTitleTemplate()
                     .replace("{title}", "%(title)s")
                     .replace("{channel}", "%(channel)s")
                     .replace("{date}", "%(upload_date)s")
                     .replace("{id}", "%(id)s")
                     .replace("{resolution}", "%(height)sp");
-                outputTemplate = downloadDir + "/%(playlist)s/" + tpl + " [%(id)s].%(ext)s";
+                outputTemplate = jobDirStr + "/%(playlist)s/" + tpl + " [%(id)s].%(ext)s";
             } else {
-                outputTemplate = downloadDir + "/%(playlist)s/%(playlist_index)03d - %(title).200B [%(id)s].%(ext)s";
+                outputTemplate = jobDirStr + "/%(playlist)s/%(playlist_index)03d - %(title).200B [%(id)s].%(ext)s";
             }
             command.add("-o");
             command.add(outputTemplate);
@@ -218,7 +351,7 @@ public class DownloaderService {
                 command.add("jpg");
             }
 
-            // Cấu hình hiệu năng & chống chặn - đọc từ AppSettings (có thể thay đổi nóng từ Admin)
+            // Cấu hình hiệu năng & chống chặn - đọc từ AppSettings
             command.add("--concurrent-fragments");
             command.add(String.valueOf(appSettings.getConcurrentFragments()));
             command.add("--sleep-interval");
@@ -228,29 +361,29 @@ public class DownloaderService {
             command.add("--retry-sleep");
             command.add("5");
 
-            // Dùng Cookies (nếu đã upload) để bẻ khoá nội dung giới hạn
-            if (hasCookieFile()) {
+            // Cookie file per-user (Feature 2 Fix)
+            if (job.getUser() != null && hasCookieFile(job.getUser())) {
+                String cf = cookieFilePath(job.getUser());
                 command.add("--cookies");
-                command.add(cookieFile);
-                job.addLog("Using cookies file: " + cookieFile);
+                command.add(cf);
+                job.addLog("Using cookies file: " + cf);
             }
 
             // In mỗi tiến trình trên một dòng mới để parse log dễ dàng
             command.add("--newline");
 
-            // Chống ban (Anti-Ban): Ép dùng IPv4 (dải IP IPv6 thường bị hạn chế/chặn rất gắt)
+            // Chống ban: Ép dùng IPv4
             command.add("--force-ipv4");
 
             // Chống ban: Giả lập trình duyệt Chrome thật
             command.add("--user-agent");
-            command.add(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+            command.add("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
 
             // Chống ban: Thời gian chờ giữa các lệnh API ngầm
             command.add("--sleep-requests");
             command.add(String.valueOf(appSettings.getSleepRequests()));
 
-            // Gỡ lỗi (Hiển thị info nhiều hơn)
+            // Gỡ lỗi
             command.add("--verbose");
 
             // URL
@@ -262,28 +395,23 @@ public class DownloaderService {
 
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 String line;
-
                 while ((line = reader.readLine()) != null) {
                     job.addLog(line);
 
-                    // Phân tích tên playlist: ví dụ "[download] Finished downloading playlist: TÊN_PLAYLIST"
+                    // Phân tích tên playlist
                     if (line.contains("Finished downloading playlist: ")) {
                         String title = line.substring(line.indexOf("Finished downloading playlist: ") + 32);
                         job.setPlaylistTitle(title);
                     }
 
-                    // Trích xuất tiêu đề video từ dòng Destination (tên file thực tế)
-                    // Ví dụ: [download] Destination: downloads/NA/001 - Ten Video [abc123].mp4
+                    // Trích xuất tiêu đề video từ dòng Destination (nếu chưa có từ oEmbed)
                     if (line.startsWith("[download] Destination:") && job.getVideoTitle() == null) {
                         try {
                             String dest = line.substring("[download] Destination:".length()).trim();
                             String filename = Paths.get(dest).getFileName().toString();
-                            // Xoá phần extension: .mp4, .mkv, ...
                             int lastDot = filename.lastIndexOf('.');
                             if (lastDot > 0) filename = filename.substring(0, lastDot);
-                            // Xoá phần [id] ở cuối: " [xxxxxxxx]"
                             filename = filename.replaceAll("\\s*\\[[A-Za-z0-9_\\-]+\\]\\s*$", "").trim();
-                            // Xoá prefix số thứ tự playlist "001 - " 
                             filename = filename.replaceAll("^\\d{1,3}\\s*-\\s*", "").trim();
                             if (!filename.isEmpty()) {
                                 job.setVideoTitle(filename);
@@ -291,23 +419,18 @@ public class DownloaderService {
                         } catch (Exception ignored) {}
                     }
 
-                    // Phân tích tốc độ tải và ETA thời gian thực từ yt-dlp output
-                    // Định dạng mẫu: [download]  45.3% of 123.45MiB at 2.50MiB/s ETA 00:23
+                    // Phân tích tốc độ tải và ETA thời gian thực
                     if (line.startsWith("[download]") && line.contains("% of") && line.contains(" at ")) {
                         try {
-                            // Trích xuất phần trăm
                             String pctStr = line.substring(line.indexOf(']') + 1, line.indexOf('%')).trim();
                             job.setProgressPercent(Double.parseDouble(pctStr));
-                            
-                            // Trích xuất tốc độ (at X.XXMiB/s)
+
                             int atIdx = line.indexOf(" at ");
                             if (atIdx != -1) {
                                 String afterAt = line.substring(atIdx + 4).trim();
-                                String speed = afterAt.split(" ")[0];
-                                job.setDownloadSpeed(speed);
+                                job.setDownloadSpeed(afterAt.split(" ")[0]);
                             }
-                            
-                            // Trích xuất ETA
+
                             int etaIdx = line.indexOf("ETA ");
                             if (etaIdx != -1) {
                                 String etaVal = line.substring(etaIdx + 4).trim().split(" ")[0];
@@ -316,7 +439,7 @@ public class DownloaderService {
                         } catch (Exception ignored) {}
                     }
 
-                    // Phân tích quá trình tiến độ (Progress): ví dụ "[download] Downloading item X of Y"
+                    // Phân tích quá trình tiến độ playlist
                     if (line.contains("[download] Downloading item ")) {
                         try {
                             String progress = line.substring(line.indexOf("[download] Downloading item ") + 28);
@@ -325,16 +448,15 @@ public class DownloaderService {
                                 job.setCurrentItem(Integer.parseInt(parts[0].trim()));
                                 job.setTotalItems(Integer.parseInt(parts[1].trim()));
                             }
-                        } catch (Exception ignored) {
-                        }
+                        } catch (Exception ignored) {}
                     }
 
-                    // Ghi nhận lỗi tải phụ đề (Vấn đề không nghiêm trọng, không dừng hệ thống)
+                    // Ghi nhận lỗi tải phụ đề (không nghiêm trọng)
                     if (line.contains("Unable to download video subtitles") && line.contains("429")) {
                         job.addLog("Subtitle error (rate limit) - continuing...");
                     }
 
-                    // Bắt các lỗi nghiêm trọng (Ngoại trừ lỗi phụ đề)
+                    // Bắt các lỗi nghiêm trọng (ngoại trừ lỗi phụ đề)
                     if (line.startsWith("ERROR:") && !line.contains("subtitles")) {
                         job.setErrorMessage(line);
                     }
@@ -343,21 +465,11 @@ public class DownloaderService {
 
             int exitCode = process.waitFor();
 
-            // Chỉ đánh dấu thất bại nếu exitCode lỗi KHÁC 0 VÀ đó không phải là do rớt tải phụ đề
             if (exitCode != 0) {
-                // Kiểm tra lại log xem thực tế tải đã hoàn thành chưa dù có thông báo lỗi
                 List<String> logs = job.getLogs();
-                boolean downloadFinished = false;
-
-                if (logs != null && logs.size() > 0) {
-                    for (int i = Math.max(0, logs.size() - 10); i < logs.size(); i++) {
-                        if (logs.get(i).contains("Finished downloading playlist") ||
-                                logs.get(i).contains("[download] 100%")) {
-                            downloadFinished = true;
-                            break;
-                        }
-                    }
-                }
+                // Issue 3 Fix: scan toàn bộ log thay vì chỉ 10 dòng cuối
+                boolean downloadFinished = logs != null && logs.stream().anyMatch(l ->
+                        l.contains("Finished downloading playlist") || l.contains("[download] 100%"));
 
                 if (!downloadFinished) {
                     throw new RuntimeException("yt-dlp exited with code " + exitCode);
@@ -369,41 +481,50 @@ public class DownloaderService {
             throw new RuntimeException(e);
         }
 
-        // Sau khi tải xong: áp dụng watermark lên tất cả thumbnail tìm thấy trong thư mục
+        // Sau khi tải xong: apply watermark lên thumbnail
         if (job.getWatermarkText() != null && !job.getWatermarkText().isEmpty()) {
             applyWatermarkToThumbnails(job);
         }
     }
 
-    private void cleanUpStaleFiles(Path dir) {
+    // ─────────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Xoá các file tạm (.part, .ytdl) CHỈ trong thư mục của job hiện tại.
+     * Issue 1 Fix: không quét toàn bộ downloads/ nữa để tránh xóa file của job khác.
+     */
+    private void cleanUpStaleFiles(Path jobDir) {
         try {
-            Files.walk(dir)
+            Files.walk(jobDir)
                     .filter(Files::isRegularFile)
                     .forEach(path -> {
                         String name = path.getFileName().toString();
-                        // Xoá các file tải dở .part hoặc .ytdl (các bản nháp tải chưa hoàn tất)
                         if (name.endsWith(".part") || name.endsWith(".ytdl")) {
                             try {
                                 Files.deleteIfExists(path);
-                            } catch (Exception ignored) {
-                            }
+                            } catch (Exception ignored) {}
                         }
                     });
         } catch (Exception e) {
-            // Lỗi xóa dọn file rác không quá nghiêm trọng (Non-critical cleanup)
+            // Non-critical cleanup
         }
     }
 
     /**
-     * Đóng dấu watermark (chữ) lên tất cả file .jpg thumbnail trong thư mục tải.
-     * Sử dụng FFmpeg drawtext filter để an toàn và nhẹ.
+     * Đóng dấu watermark lên tất cả .jpg thumbnail trong folder của job.
      */
     private void applyWatermarkToThumbnails(Job job) {
         try {
             String watermark = job.getWatermarkText();
             if (watermark == null || watermark.isEmpty()) return;
 
-            Files.walk(Paths.get(downloadDir))
+            // Chỉ quét trong subfolder của job (không quét toàn bộ downloads/)
+            Path jobDir = Paths.get(downloadDir, job.getId());
+            if (!Files.exists(jobDir)) return;
+
+            Files.walk(jobDir)
                 .filter(Files::isRegularFile)
                 .filter(p -> p.getFileName().toString().toLowerCase().endsWith(".jpg"))
                 .forEach(thumbnailPath -> {
@@ -411,7 +532,6 @@ public class DownloaderService {
                         String inPath = thumbnailPath.toAbsolutePath().toString();
                         String outPath = inPath.replace(".jpg", "_wm.jpg");
 
-                        // FFmpeg: vẽ chữ watermark góc dưới phải, nền đen mờ
                         List<String> cmd = new ArrayList<>();
                         cmd.add("ffmpeg");
                         cmd.add("-y");
@@ -426,7 +546,6 @@ public class DownloaderService {
                         Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
                         p.waitFor();
 
-                        // Thay thế file gốc bằng file đã watermark
                         if (new File(outPath).exists()) {
                             Files.deleteIfExists(thumbnailPath);
                             new File(outPath).renameTo(thumbnailPath.toFile());

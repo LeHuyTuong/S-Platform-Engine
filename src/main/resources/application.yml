@@ -22,3 +22,13 @@ spring:
 
 server:
   port: 8080
+
+app:
+  downloader:
+    output-dir: downloads
+  # Telegram Bot notification (Feature 3)
+  # Tạo bot qua @BotFather trên Telegram, lấy token ở đây
+  telegram:
+    bot-token: ""   # Ví dụ: "123456789:AAHxxxxxxxxxxxxxx"
+  # Base URL để build download link trong Telegram message
+  base-url: "http://localhost:8080"

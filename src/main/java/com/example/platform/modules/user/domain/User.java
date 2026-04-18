@@ -34,6 +34,10 @@ public class User {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    /** Telegram Chat ID để gửi thông báo khi job hoàn thành. Nullable. */
+    @Column(name = "telegram_chat_id")
+    private String telegramChatId;
+
     public User() {}
 
     public User(String email, String passwordHash, Role role, boolean enabled) {
@@ -57,4 +61,6 @@ public class User {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public String getTelegramChatId() { return telegramChatId; }
+    public void setTelegramChatId(String telegramChatId) { this.telegramChatId = telegramChatId; }
 }
