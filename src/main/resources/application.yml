@@ -6,13 +6,19 @@ spring:
       name: user
       password: user
   datasource:
-    url: jdbc:mysql://localhost:3306/platform_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-    username: root
-    password: root
+    url: jdbc:h2:mem:platform;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
   jpa:
     hibernate:
-      ddl-auto: update # Use update for auto-generating tables during dev
+      ddl-auto: update
     show-sql: true
+    database-platform: org.hibernate.dialect.H2Dialect
     properties:
       hibernate:
         format_sql: true
@@ -22,13 +28,20 @@ spring:
 
 server:
   port: 8080
+  servlet:
+    session:
+      timeout: 30m          # RuntimeSettings tự xoá sau 30 phút không hoạt động
+      cookie:
+        http-only: true     # Ngăn JavaScript đọc session cookie
+        same-site: strict   # Chống CSRF cross-site
 
 app:
   downloader:
     output-dir: downloads
-  # Telegram Bot notification (Feature 3)
-  # Tạo bot qua @BotFather trên Telegram, lấy token ở đây
+    yt-dlp-path: bin/yt-dlp.exe
+    ffmpeg-path: bin/ffmpeg.exe
+  # Telegram Bot Token để rỗng — cấu hình tại runtime qua UI (không hardcode)
   telegram:
-    bot-token: ""   # Ví dụ: "123456789:AAHxxxxxxxxxxxxxx"
-  # Base URL để build download link trong Telegram message
+    bot-token: ""           # KHÔNG điền ở đây — dùng tính năng "Cài đặt kết nối" trên UI
+  # Base URL default — có thể override qua RuntimeSettings UI mà không cần restart
   base-url: "http://localhost:8080"

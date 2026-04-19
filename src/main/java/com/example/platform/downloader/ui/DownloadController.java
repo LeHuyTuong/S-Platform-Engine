@@ -1,4 +1,12 @@
-package com.example.platform.downloader;
+package com.example.platform.downloader.ui;
+
+import com.example.platform.downloader.domain.Job;
+import com.example.platform.downloader.infrastructure.JobRepository;
+import com.example.platform.downloader.application.JobManager;
+import com.example.platform.downloader.application.DownloaderService;
+import com.example.platform.kernel.exception.BusinessException;
+import com.example.platform.kernel.exception.ResourceNotFoundException;
+import com.example.platform.kernel.ui.RestResponse;
 
 import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
@@ -7,6 +15,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.security.Principal;
 import java.time.LocalDateTime;
@@ -65,12 +74,13 @@ public class DownloadController {
 
     @PostMapping("/api/submit")
     @ResponseBody
-    public ResponseEntity<?> submit(@RequestBody Map<String, String> payload, Principal principal) {
+    public RestResponse<Job> submit(@RequestBody Map<String, String> payload,
+                                     Principal principal, HttpSession session) {
         if (principal == null) {
-            return ResponseEntity.status(401).body(Map.of("message", "Bạn chưa đăng nhập"));
+            throw new BusinessException("Bạn chưa đăng nhập");
         }
         User user = userRepository.findByEmail(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         // Bug 4 Fix: serialize quota check + submit per-user để tránh concurrent bypass
         synchronized (jobManager.getUserLock(user.getId().toString())) {
@@ -80,25 +90,23 @@ public class DownloadController {
 
             int maxJobs = resolveQuota(user);
             if (jobsToday >= maxJobs) {
-                return ResponseEntity.status(429).body(Map.of(
-                        "message", "Đã vượt hạn mức! Bạn chỉ có thể tải " + maxJobs + " tệp mỗi ngày."));
+                throw new BusinessException("Đã vượt hạn mức! Bạn chỉ có thể tải " + maxJobs + " tệp mỗi ngày.");
             }
 
             String url = payload.get("url");
             if (url == null || url.isBlank()) {
-                return ResponseEntity.badRequest().body(Map.of("message", "Vui lòng nhập URL"));
+                throw new BusinessException("Vui lòng nhập URL");
             }
 
             // Block proxy usage for normal users
             if ("USER".equals(user.getRole().name())
                     && payload.containsKey("proxy")
                     && !payload.get("proxy").isBlank()) {
-                return ResponseEntity.status(403)
-                        .body(Map.of("message", "Chỉ tài khoản PUBLISHER mới có thể dùng Proxy riêng."));
+                throw new org.springframework.security.access.AccessDeniedException("Chỉ tài khoản PUBLISHER mới có thể dùng Proxy riêng.");
             }
 
-            Job job = downloaderService.submitDownload(payload, user);
-            return ResponseEntity.ok(job);
+            Job job = downloaderService.submitDownload(payload, user, session);
+            return RestResponse.ok(job, "Job submitted successfully");
         }
     }
 
@@ -108,19 +116,19 @@ public class DownloadController {
 
     @GetMapping("/api/status/{id}")
     @ResponseBody
-    public ResponseEntity<?> getStatus(@PathVariable String id, Principal principal) {
+    public RestResponse<Job> getStatus(@PathVariable String id, Principal principal) {
         Job job = jobManager.getJob(id);
         if (job == null) {
-            return ResponseEntity.notFound().build();
+            throw new ResourceNotFoundException("Job not found: " + id);
         }
         // Chỉ cho phép xem job của chính mình (hoặc ADMIN)
         if (principal != null) {
             User user = userRepository.findByEmail(principal.getName()).orElse(null);
             if (user != null && !isOwnerOrAdmin(job, user)) {
-                return ResponseEntity.status(403).body(Map.of("message", "Không có quyền truy cập"));
+                throw new org.springframework.security.access.AccessDeniedException("Không có quyền truy cập");
             }
         }
-        return ResponseEntity.ok(job);
+        return RestResponse.ok(job);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -133,21 +141,21 @@ public class DownloadController {
      */
     @GetMapping("/api/files/{jobId}")
     @ResponseBody
-    public ResponseEntity<?> listFiles(@PathVariable String jobId, Principal principal) {
+    public RestResponse<List<Map<String, String>>> listFiles(@PathVariable String jobId, Principal principal) {
         Job job = jobManager.getJob(jobId);
-        if (job == null) return ResponseEntity.notFound().build();
+        if (job == null) throw new ResourceNotFoundException("Job not found");
 
         if (principal != null) {
             User user = userRepository.findByEmail(principal.getName()).orElse(null);
             if (user == null || !isOwnerOrAdmin(job, user)) {
-                return ResponseEntity.status(403).body(Map.of("message", "Không có quyền truy cập"));
+                throw new org.springframework.security.access.AccessDeniedException("Không có quyền truy cập");
             }
         } else {
-            return ResponseEntity.status(401).body(Map.of("message", "Bạn chưa đăng nhập"));
+            throw new BusinessException("Bạn chưa đăng nhập");
         }
 
         List<Map<String, String>> files = downloaderService.listJobFiles(jobId);
-        return ResponseEntity.ok(files);
+        return RestResponse.ok(files);
     }
 
     /**
@@ -183,34 +191,34 @@ public class DownloadController {
 
     @PostMapping("/api/upload-cookies")
     @ResponseBody
-    public ResponseEntity<Map<String, String>> uploadCookies(
+    public RestResponse<Void> uploadCookies(
             @RequestParam("file") MultipartFile file, Principal principal) {
         if (principal == null) {
-            return ResponseEntity.status(401).body(Map.of("status", "error", "message", "Bạn chưa đăng nhập"));
+            throw new BusinessException("Bạn chưa đăng nhập");
         }
         User user = userRepository.findByEmail(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         try {
             downloaderService.saveCookieFile(file, user);
-            return ResponseEntity.ok(Map.of("status", "success", "message", "Tải lên cookie thành công"));
+            return RestResponse.ok(null, "Tải lên cookie thành công");
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("status", "error", "message", e.getMessage()));
+            throw new BusinessException("Lỗi upload: " + e.getMessage());
         }
     }
 
     @DeleteMapping("/api/cookies")
     @ResponseBody
-    public ResponseEntity<Map<String, String>> deleteCookies(Principal principal) {
+    public RestResponse<Void> deleteCookies(Principal principal) {
         if (principal == null) {
-            return ResponseEntity.status(401).body(Map.of("status", "error", "message", "Bạn chưa đăng nhập"));
+            throw new BusinessException("Bạn chưa đăng nhập");
         }
         User user = userRepository.findByEmail(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         try {
             downloaderService.deleteCookieFile(user);
-            return ResponseEntity.ok(Map.of("status", "success", "message", "Đã xoá file cookie"));
+            return RestResponse.ok(null, "Đã xoá file cookie");
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("status", "error", "message", e.getMessage()));
+            throw new BusinessException("Lỗi khi xóa: " + e.getMessage());
         }
     }
 
@@ -227,13 +235,13 @@ public class DownloadController {
      */
     @PostMapping("/api/telegram-chatid")
     @ResponseBody
-    public ResponseEntity<Map<String, String>> updateTelegramChatId(
+    public RestResponse<Void> updateTelegramChatId(
             @RequestBody Map<String, String> body, Principal principal) {
         if (principal == null) {
-            return ResponseEntity.status(401).body(Map.of("status", "error", "message", "Bạn chưa đăng nhập"));
+            throw new BusinessException("Bạn chưa đăng nhập");
         }
         User user = userRepository.findByEmail(principal.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         String chatId = body.getOrDefault("chatId", "").trim();
         // Cho phép xóa chat_id bằng cách gửi chuỗi rỗng
@@ -241,7 +249,7 @@ public class DownloadController {
         userRepository.save(user);
 
         String msg = chatId.isEmpty() ? "Đã xóa Telegram Chat ID" : "Đã lưu Telegram Chat ID: " + chatId;
-        return ResponseEntity.ok(Map.of("status", "success", "message", msg));
+        return RestResponse.ok(null, msg);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

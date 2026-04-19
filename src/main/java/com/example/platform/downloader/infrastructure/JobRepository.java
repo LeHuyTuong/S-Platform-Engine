@@ -1,4 +1,6 @@
-package com.example.platform.downloader;
+package com.example.platform.downloader.infrastructure;
+
+import com.example.platform.downloader.domain.Job;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;

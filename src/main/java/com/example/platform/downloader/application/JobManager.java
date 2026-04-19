@@ -1,4 +1,8 @@
-package com.example.platform.downloader;
+package com.example.platform.downloader.application;
+
+import com.example.platform.downloader.domain.Job;
+import com.example.platform.downloader.domain.RuntimeSettings;
+import com.example.platform.downloader.infrastructure.JobRepository;
 
 import org.springframework.stereotype.Service;
 import java.util.concurrent.*;
@@ -13,6 +17,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 
+import jakarta.servlet.http.HttpSession;
+
 @Service
 public class JobManager {
 
@@ -23,9 +29,6 @@ public class JobManager {
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     private final Map<String, Job> activeJobs = new ConcurrentHashMap<>();
-
-    // Per-user lock để ngăn quota bypass bằng concurrent requests (Bug 4)
-    private final Map<String, Object> userLocks = new ConcurrentHashMap<>();
 
     private final JobRepository jobRepository;
     private final TelegramNotificationService telegramNotificationService;
@@ -50,12 +53,14 @@ public class JobManager {
      * @param currentUser User thực hiện yêu cầu
      * @param setupJob    Lambda SET field (chạy SYNC trên HTTP thread TRƯỚC khi save DB) — fix Bug 2
      * @param executeJob  Lambda CHẠY download (chạy ASYNC trong executor thread)
+     * @param session     HttpSession của request — dùng để lấy RuntimeSettings cho Telegram
      * @return Job đã được tạo và persist với đầy đủ thông tin
      */
     public Job submitJob(String url,
                          com.example.platform.modules.user.domain.User currentUser,
                          Consumer<Job> setupJob,
-                         Runnable executeJob) {
+                         Runnable executeJob,
+                         HttpSession session) {
         Job job = new Job(url);
         job.setUser(currentUser);
 
@@ -76,18 +81,21 @@ public class JobManager {
                 job.addLog("Error: " + e.getMessage());
             } finally {
                 jobRepository.save(job);
-                // Telegram notification (Feature 3)
+                // Telegram notification — token lấy từ session (không hardcode yml)
                 try {
                     if (job.getUser() != null) {
+                        // Resolve baseUrl: ưu tiên runtime setting, fallback về @Value
+                        String resolvedBaseUrl = resolveBaseUrl(session);
                         if (job.getStatus() == Job.JobStatus.COMPLETED) {
                             var files = downloaderService.listJobFiles(job.getId());
-                            telegramNotificationService.notifyJobCompleted(job, job.getUser(), files, baseUrl);
+                            telegramNotificationService.notifyJobCompleted(
+                                    job, job.getUser(), files, resolvedBaseUrl, session);
                         } else if (job.getStatus() == Job.JobStatus.FAILED) {
-                            telegramNotificationService.notifyJobFailed(job, job.getUser());
+                            telegramNotificationService.notifyJobFailed(job, job.getUser(), session);
                         }
                     }
                 } catch (Exception ignored) {
-                    // Notification đầy không được làm fail job
+                    // Notification failure không được làm fail job
                 }
                 // Bug 1 Fix: dọn khỏi activeJobs sau 30 phút để tránh memory leak
                 scheduler.schedule(
@@ -118,16 +126,41 @@ public class JobManager {
     }
 
     /**
-     * Trả về Object lock dùng riêng cho từng user để serialize quota check + submit.
-     * Bug 4 Fix: ngăn 2 request đồng thời cùng user đều pass quota check.
+     * Per-user lock để serialize quota check + submit, ngăn concurrent bypass (Bug 4).
+     *
+     * Dùng String.intern() thay Map<userId, Object> để JVM tự quản lý string pool,
+     * tránh Map grow vô hạn với mỗi userId mới.
      */
     public Object getUserLock(String userId) {
-        return userLocks.computeIfAbsent(userId, k -> new Object());
+        return userId.intern();
     }
 
     public List<Job> getAllJobs() {
         return jobRepository.findAll().stream()
                 .sorted(Comparator.comparing(Job::getCreatedAt).reversed())
                 .collect(Collectors.toList());
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Ưu tiên baseUrl từ RuntimeSettings trong session.
+     * Nếu không có thì dùng giá trị từ application.yml (@Value).
+     */
+    private String resolveBaseUrl(HttpSession session) {
+        if (session != null) {
+            try {
+                Object attr = session.getAttribute(SessionSettingsService.SESSION_KEY);
+                if (attr instanceof RuntimeSettings rs
+                        && rs.getBaseUrl() != null && !rs.getBaseUrl().isBlank()) {
+                    return rs.getBaseUrl();
+                }
+            } catch (IllegalStateException ignored) {
+                // Session invalidated
+            }
+        }
+        return baseUrl; // fallback về @Value từ yml
     }
 }

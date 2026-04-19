@@ -2,6 +2,7 @@ package com.example.platform.modules.user.infrastructure;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -14,6 +15,7 @@ import com.example.platform.modules.user.domain.User;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity  // Bật @PreAuthorize / @PostAuthorize trên các @Service/@RestController
 public class SecurityConfig {
 
     @Bean
@@ -22,6 +24,9 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable()) // Disabled for simplicity during prototyping APIs
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/downloader/api/submit").authenticated()
+                .requestMatchers("/downloader/api/runtime-settings",
+                                 "/downloader/api/runtime-settings/**")
+                    .hasAnyRole("ADMIN", "PUBLISHER")  // Backup ngoài @PreAuthorize
                 .requestMatchers("/admin/**").hasRole("ADMIN")
                 .anyRequest().permitAll()
             )

@@ -59,7 +59,81 @@
                     </div>
                 </div>
 
+                <!-- Runtime Settings Card — chỉ ADMIN/PUBLISHER -->
+                <div class="dl-card mb-4"
+                     th:if="${currentUser != null and (currentUser.role.name() == 'ADMIN' or currentUser.role.name() == 'PUBLISHER')}">
+                    <div class="dl-card-header dl-collapsible" data-bs-toggle="collapse" data-bs-target="#runtimeSettingsPanel">
+                        <span class="dl-card-icon">⚙️</span>
+                        <span class="dl-card-title">Cài đặt kết nối</span>
+                        <span class="dl-badge-new ms-2">RUNTIME</span>
+                        <svg class="dl-chevron ms-auto" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                    <div class="collapse" id="runtimeSettingsPanel">
+                        <div class="dl-card-body">
+                            <!-- Status indicators -->
+                            <div id="runtimeStatus" class="mb-3 d-flex gap-3 flex-wrap">
+                                <span class="dl-hint">⏳ Đang kiểm tra trạng thái...</span>
+                            </div>
+
+                            <!-- Warning -->
+                            <div class="dl-alert dl-alert-warning mb-3" style="font-size:12px;">
+                                ⚠️ Settings sẽ tự xoá sau <strong>30 phút</strong> không hoạt động.
+                                Token không bao giờ được lưu vào DB hay log.
+                            </div>
+
+                            <!-- Input fields -->
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="dl-label">🤖 Telegram Bot Token</label>
+                                    <input type="password" id="rtTelegramToken" class="dl-input dl-input-sm"
+                                           placeholder="123456789:AAHxxxxxxxxxxxxxxxxxxxx"
+                                           autocomplete="off">
+                                    <div class="dl-hint">Lấy từ @BotFather.</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="dl-label">🆔 Telegram Chat ID</label>
+                                    <input type="text" id="rtTelegramChatId" class="dl-input dl-input-sm"
+                                           placeholder="7679107794"
+                                           autocomplete="off">
+                                    <div class="dl-hint">Lấy từ @userinfobot.</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="dl-label">📁 Google Drive Folder ID</label>
+                                    <input type="text" id="rtDriveFolderId" class="dl-input dl-input-sm"
+                                           placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs"
+                                           autocomplete="off">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="dl-label">🌐 Base URL (override)</label>
+                                    <input type="text" id="rtBaseUrl" class="dl-input dl-input-sm"
+                                           placeholder="https://your-domain.com"
+                                           autocomplete="off">
+                                    <div class="dl-hint">Override app.base-url trong yml.</div>
+                                </div>
+                                <div class="col-12">
+                                    <label class="dl-label">🔑 Google Drive Service Account JSON</label>
+                                    <textarea id="rtDriveJson" class="dl-input dl-input-sm"
+                                              rows="4" style="font-family:monospace; font-size:11px;"
+                                              placeholder='{"type":"service_account","project_id":"...","private_key":"...","client_email":"..."}'></textarea>
+                                    <div class="dl-hint">Paste nội dung file JSON Service Account. Không lưu vào DB.</div>
+                                </div>
+                            </div>
+
+                            <!-- Actions -->
+                            <div class="d-flex gap-2 mt-3">
+                                <button class="dl-btn dl-btn-primary dl-btn-sm" id="rtSaveBtn" onclick="saveRuntimeSettings()">
+                                    💾 Lưu vào Session
+                                </button>
+                                <button class="dl-btn dl-btn-danger dl-btn-sm" id="rtClearBtn" onclick="clearRuntimeSettings()">
+                                    🗑 Xoá Session
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Main Download Form -->
+
                 <div class="dl-card mb-4">
                     <div class="dl-card-header">
                         <span class="dl-card-icon">🔗</span>
@@ -376,7 +450,8 @@
                         watermarkText: $('#watermarkInput').val(),
                         titleTemplate: $('#titleTemplateInput').val()
                     }),
-                    success: function (job) {
+                    success: function (resp) {
+                        const job = resp.data;
                         showAlert('✅ Đã tạo Job thành công! ID: ' + job.id, 'success');
                         $('#urlInput').val('');
                         setTimeout(() => location.reload(), 1200);
@@ -436,7 +511,10 @@
 
         function pollJob() {
             if (!currentJobId) return;
-            $.get('/downloader/api/status/' + currentJobId, function (job) {
+            $.get('/downloader/api/status/' + currentJobId, function (resp) {
+                const job = resp.data;
+                if (!job) return;
+
                 // Status badge
                 const statusEl = $('#currentStatus');
                 statusEl.text(job.status).attr('class', 'dl-status-badge status-' + job.status);
@@ -490,6 +568,112 @@
                 }
             });
         }
+    </script>
+
+    <script>
+        // ─────────────────────────────────────────────────────────────────────
+        // Runtime Settings — ADMIN/PUBLISHER only
+        // ─────────────────────────────────────────────────────────────────────
+
+        function loadRuntimeStatus() {
+            $.ajax({
+                url: '/downloader/api/runtime-settings',
+                type: 'GET',
+                success: function(resp) {
+                    var data = resp.data;
+                    var html = '';
+                    html += statusBadge('🤖 Telegram Bot', data.hasTelegramToken);
+                    html += statusBadge('🆔 Telegram Chat', data.hasTelegramChatId);
+                    html += statusBadge('📁 Drive Folder', data.hasGoogleDriveFolderId);
+                    html += statusBadge('🔑 Drive JSON', data.hasGoogleDriveServiceAccount);
+                    html += statusBadge('🌐 Base URL', data.hasBaseUrl);
+                    $('#runtimeStatus').html(html);
+                },
+                error: function(xhr) {
+                    if (xhr.status === 403) {
+                        $('#runtimeStatus').html('<span class="dl-hint">🔒 Yêu cầu quyền ADMIN/PUBLISHER</span>');
+                    } else {
+                        $('#runtimeStatus').html('<span class="dl-hint">⚠️ Không thể tải trạng thái</span>');
+                    }
+                }
+            });
+        }
+
+        function statusBadge(label, hasValue) {
+            var cls  = hasValue ? 'dl-badge-ok' : 'dl-badge-off';
+            var icon = hasValue ? '✅' : '⭕';
+            return '<span class="' + cls + '">' + icon + ' ' + label + '</span> ';
+        }
+
+        function saveRuntimeSettings() {
+            var payload = {
+                telegramBotToken:              $('#rtTelegramToken').val() || null,
+                telegramChatId:                $('#rtTelegramChatId').val() || null,
+                googleDriveFolderId:           $('#rtDriveFolderId').val() || null,
+                googleDriveServiceAccountJson: $('#rtDriveJson').val() || null,
+                baseUrl:                       $('#rtBaseUrl').val() || null
+            };
+
+            // Client-side pre-validation
+            var token = payload.telegramBotToken;
+            if (token && (token.includes('\n') || token.includes('\r'))) {
+                showAlert('❌ Telegram token không được chứa ký tự xuống dòng.', 'danger');
+                return;
+            }
+            var url = payload.baseUrl;
+            if (url && !url.startsWith('https://') && !url.startsWith('http://localhost') && !url.startsWith('http://127.')) {
+                showAlert('❌ Base URL phải bắt đầu bằng https:// (hoặc http://localhost).', 'danger');
+                return;
+            }
+
+            $('#rtSaveBtn').prop('disabled', true).text('Đang lưu...');
+            $.ajax({
+                url: '/downloader/api/runtime-settings',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                success: function(resp) {
+                    showAlert('✅ ' + resp.message, 'success');
+                    // Clear sensitive inputs sau khi lưu
+                    $('#rtTelegramToken').val('');
+                    $('#rtDriveJson').val('');
+                    loadRuntimeStatus();
+                },
+                error: function(xhr) {
+                    var msg = xhr.responseJSON ? xhr.responseJSON.message : 'Lỗi khi lưu settings';
+                    showAlert('❌ ' + msg, 'danger');
+                },
+                complete: function() {
+                    $('#rtSaveBtn').prop('disabled', false).text('💾 Lưu vào Session');
+                }
+            });
+        }
+
+        function clearRuntimeSettings() {
+            if (!confirm('Xoá toàn bộ runtime settings khỏi session?')) return;
+            $.ajax({
+                url: '/downloader/api/runtime-settings',
+                type: 'DELETE',
+                success: function(resp) {
+                    showAlert('✅ ' + resp.message, 'success');
+                    $('#rtTelegramToken, #rtTelegramChatId, #rtDriveFolderId, #rtDriveJson, #rtBaseUrl').val('');
+                    loadRuntimeStatus();
+                },
+                error: function() {
+                    showAlert('❌ Lỗi khi xoá settings', 'danger');
+                }
+            });
+        }
+
+        // Load status khi panel mở lần đầu
+        document.addEventListener('DOMContentLoaded', function() {
+            var panel = document.getElementById('runtimeSettingsPanel');
+            if (panel) {
+                panel.addEventListener('show.bs.collapse', function() {
+                    loadRuntimeStatus();
+                });
+            }
+        });
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

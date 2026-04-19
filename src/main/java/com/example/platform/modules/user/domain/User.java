@@ -7,9 +7,11 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
+import com.example.platform.kernel.domain.BaseAuditEntity;
+
 @Entity
 @Table(name = "users")
-public class User {
+public class User extends BaseAuditEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,12 +29,6 @@ public class User {
 
     @Column(nullable = false)
     private boolean enabled = true;
-
-    @CreationTimestamp
-    private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    private LocalDateTime updatedAt;
 
     /** Telegram Chat ID để gửi thông báo khi job hoàn thành. Nullable. */
     @Column(name = "telegram_chat_id")
@@ -57,10 +53,6 @@ public class User {
     public void setRole(Role role) { this.role = role; }
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
     public String getTelegramChatId() { return telegramChatId; }
     public void setTelegramChatId(String telegramChatId) { this.telegramChatId = telegramChatId; }
 }

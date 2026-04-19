@@ -1,4 +1,13 @@
-package com.example.platform.downloader;
+package com.example.platform.downloader.ui;
+
+import com.example.platform.downloader.domain.Job;
+import com.example.platform.downloader.infrastructure.JobRepository;
+import com.example.platform.downloader.infrastructure.AppSettings;
+import com.example.platform.downloader.application.JobManager;
+import com.example.platform.downloader.application.DownloaderService;
+import com.example.platform.kernel.exception.BusinessException;
+import com.example.platform.kernel.exception.ResourceNotFoundException;
+import com.example.platform.kernel.ui.RestResponse;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +47,16 @@ public class AdminController {
         this.downloadDir = downloadDir;
     }
 
+    private boolean checkBinary(String path, String globalCmd) {
+        if (new File(path).exists()) return true;
+        try {
+            Process p = new ProcessBuilder(globalCmd, "--version").start();
+            return p.waitFor() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     // Trang Admin Dashboard chính
     @GetMapping
     public String dashboard(Model model) {
@@ -47,16 +66,20 @@ public class AdminController {
         model.addAttribute("users", userRepository.findAll());
         model.addAttribute("settings", appSettings);
         model.addAttribute("diskUsage", getDiskUsageMb());
+        
+        // Dependency check
+        model.addAttribute("isYtDlpInstalled", checkBinary("bin/yt-dlp.exe", "yt-dlp"));
+        model.addAttribute("isFfmpegInstalled", checkBinary("bin/ffmpeg.exe", "ffmpeg"));
+        
         return "admin";
     }
 
     // API: Tải lại (Re-submit) một Job đã hoàn thành hoặc thất bại
     @PostMapping("/api/job/{id}/resubmit")
     @ResponseBody
-    public ResponseEntity<?> resubmitJob(@PathVariable String id) {
-        Job job = jobRepository.findById(id).orElse(null);
-        if (job == null) return ResponseEntity.notFound().build();
-        if (job.getUser() == null) return ResponseEntity.badRequest().body(Map.of("message", "Job không có người dùng."));
+    public RestResponse<Map<String, String>> resubmitJob(@PathVariable String id) {
+        Job job = jobRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Job not found"));
+        if (job.getUser() == null) throw new BusinessException("Job không có người dùng.");
 
         try {
             Map<String, String> payload = new LinkedHashMap<>();
@@ -73,40 +96,17 @@ public class AdminController {
             if (job.getTitleTemplate() != null) payload.put("titleTemplate", job.getTitleTemplate());
 
             Job newJob = downloaderService.submitDownload(payload, job.getUser());
-            return ResponseEntity.ok(Map.of("message", "✅ Đã tải lại thành công! Job mới: " + newJob.getId().substring(0, 8) + "..."));
+            return RestResponse.ok(null, "✅ Đã tải lại thành công! Job mới: " + newJob.getId().substring(0, 8) + "...");
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(Map.of("message", e.getMessage()));
+            throw new BusinessException(e.getMessage());
         }
     }
 
-    // API: Xoá tất cả file tạm trong thư mục downloads
-    @DeleteMapping("/api/storage/clear")
-    @ResponseBody
-    public ResponseEntity<?> clearAllStorage() {
-        try {
-            Path dir = Paths.get(downloadDir);
-            long deleted = 0;
-            if (Files.exists(dir)) {
-                List<Path> files = Files.walk(dir)
-                        .filter(Files::isRegularFile)
-                        .filter(p -> !p.getFileName().toString().equals("cookies.txt")
-                                  && !p.getFileName().toString().equals("downloaded.txt"))
-                        .collect(Collectors.toList());
-                for (Path p : files) {
-                    Files.deleteIfExists(p);
-                    deleted++;
-                }
-            }
-            return ResponseEntity.ok(Map.of("message", "Đã xoá " + deleted + " tệp khỏi hệ thống."));
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(Map.of("message", e.getMessage()));
-        }
-    }
 
     // API: Tự động lấy tiêu đề cho tất cả job chưa có title (gọi 1 lần sau deploy)
     @PostMapping("/api/jobs/backfill-titles")
     @ResponseBody
-    public ResponseEntity<?> backfillTitles() {
+    public RestResponse<Void> backfillTitles() {
         List<Job> jobs = jobRepository.findAll();
         int updated = 0;
         for (Job job : jobs) {
@@ -119,13 +119,13 @@ public class AdminController {
                 }
             }
         }
-        return ResponseEntity.ok(Map.of("message", "✅ Đã cập nhật tiêu đề cho " + updated + " job."));
+        return RestResponse.ok(null, "✅ Đã cập nhật tiêu đề cho " + updated + " job.");
     }
 
     // API: Cập nhật cấu hình hệ thống (nóng - không cần restart)
     @PostMapping("/api/settings")
     @ResponseBody
-    public ResponseEntity<?> updateSettings(@RequestBody Map<String, String> body) {
+    public RestResponse<Void> updateSettings(@RequestBody Map<String, String> body) {
         try {
             if (body.containsKey("sleepInterval"))
                 appSettings.setSleepInterval(Integer.parseInt(body.get("sleepInterval")));
@@ -136,23 +136,23 @@ public class AdminController {
             if (body.containsKey("retries"))
                 appSettings.setRetries(Integer.parseInt(body.get("retries")));
 
-            return ResponseEntity.ok(Map.of("message", "Cấu hình đã được cập nhật thành công."));
+            return RestResponse.ok(null, "Cấu hình đã được cập nhật thành công.");
         } catch (NumberFormatException e) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Định dạng số không hợp lệ: " + e.getMessage()));
+            throw new BusinessException("Định dạng số không hợp lệ: " + e.getMessage());
         }
     }
 
     // API: Lấy settings hiện tại
     @GetMapping("/api/settings")
     @ResponseBody
-    public ResponseEntity<?> getSettings() {
+    public RestResponse<Map<String, Object>> getSettings() {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("sleepInterval", appSettings.getSleepInterval());
         result.put("concurrentFragments", appSettings.getConcurrentFragments());
         result.put("sleepRequests", appSettings.getSleepRequests());
         result.put("retries", appSettings.getRetries());
         result.put("diskUsageMb", getDiskUsageMb());
-        return ResponseEntity.ok(result);
+        return RestResponse.ok(result);
     }
 
     // Tính dung lượng thư mục downloads (MB)

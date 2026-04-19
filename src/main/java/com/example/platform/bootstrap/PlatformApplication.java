@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @ComponentScan(basePackages = "com.example.platform")
 @EntityScan(basePackages = "com.example.platform")
 @EnableJpaRepositories(basePackages = "com.example.platform")
+@org.springframework.data.jpa.repository.config.EnableJpaAuditing
 public class PlatformApplication {
 
 	public static void main(String[] args) {

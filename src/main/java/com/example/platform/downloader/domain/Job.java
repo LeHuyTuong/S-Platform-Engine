@@ -1,4 +1,4 @@
-package com.example.platform.downloader;
+package com.example.platform.downloader.domain;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -18,9 +18,11 @@ import jakarta.persistence.Column;
 
 import com.example.platform.modules.user.domain.User;
 
+import com.example.platform.kernel.domain.BaseAuditEntity;
+
 @Entity
 @Table(name = "jobs")
-public class Job {
+public class Job extends BaseAuditEntity {
     @Id
     private String id;
 
@@ -37,7 +39,6 @@ public class Job {
     @Transient
     private List<String> logs;
 
-    private LocalDateTime createdAt;
     private String outputFilename;
 
     // Playlist tracking
@@ -80,7 +81,6 @@ public class Job {
         this.url = url;
         this.status = JobStatus.PENDING;
         this.logs = new ArrayList<>();
-        this.createdAt = LocalDateTime.now();
     }
 
     public synchronized void addLog(String log) {
@@ -122,13 +122,6 @@ public class Job {
         this.logs = logs;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
 
     public String getOutputFilename() {
         return outputFilename;

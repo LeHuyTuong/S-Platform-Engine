@@ -1,4 +1,4 @@
-package com.example.platform.downloader;
+package com.example.platform.downloader.infrastructure;
 
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Value;

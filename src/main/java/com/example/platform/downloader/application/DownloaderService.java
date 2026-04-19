@@ -1,4 +1,8 @@
-package com.example.platform.downloader;
+package com.example.platform.downloader.application;
+
+import com.example.platform.downloader.domain.Job;
+import com.example.platform.downloader.infrastructure.JobRepository;
+import com.example.platform.downloader.infrastructure.AppSettings;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.InputStreamResource;
@@ -30,6 +34,8 @@ import java.util.regex.Pattern;
 
 import com.example.platform.modules.user.domain.User;
 
+import jakarta.servlet.http.HttpSession;
+
 @Service
 public class DownloaderService {
 
@@ -37,15 +43,31 @@ public class DownloaderService {
     private final JobRepository jobRepository;
     private final String downloadDir;
     private final AppSettings appSettings;
+    private final String ytDlpPath;
+    private final String ffmpegPath;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     public DownloaderService(JobManager jobManager,
             JobRepository jobRepository,
             @Value("${app.downloader.output-dir:downloads}") String downloadDir,
+            @Value("${app.downloader.yt-dlp-path:yt-dlp}") String ytDlpPath,
+            @Value("${app.downloader.ffmpeg-path:ffmpeg}") String ffmpegPath,
             AppSettings appSettings) {
         this.jobManager = jobManager;
         this.jobRepository = jobRepository;
         this.downloadDir = downloadDir;
+        this.ytDlpPath = resolveBinaryPath(ytDlpPath);
+        this.ffmpegPath = resolveBinaryPath(ffmpegPath);
         this.appSettings = appSettings;
+        this.objectMapper = new com.fasterxml.jackson.databind.ObjectMapper()
+                .enable(com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT);
+    }
+
+    private String resolveBinaryPath(String path) {
+        if (new File(path).exists()) {
+            return new File(path).getAbsolutePath();
+        }
+        return path.replace(".exe", ""); // Fallback to global command (strip .exe for Linux compatibility if needed, though app.yml had .exe)
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -88,6 +110,13 @@ public class DownloaderService {
      * thread), không còn block HTTP thread ~4 giây nữa.
      */
     public Job submitDownload(Map<String, String> payload, User currentUser) {
+        return submitDownload(payload, currentUser, null);
+    }
+
+    /**
+     * Submit một download job (với HttpSession để truyền RuntimeSettings cho Telegram).
+     */
+    public Job submitDownload(Map<String, String> payload, User currentUser, HttpSession session) {
         String url = payload.get("url");
 
         // Dùng array trick để capture job reference cho executeJob lambda
@@ -109,7 +138,8 @@ public class DownloaderService {
                     jobRef[0] = job; // capture reference cho executeJob
                 },
                 // === executeJob: chạy ASYNC trong executor thread ===
-                () -> executeDownload(jobRef[0])
+                () -> executeDownload(jobRef[0]),
+                session
         );
     }
 
@@ -261,7 +291,7 @@ public class DownloaderService {
             String archiveFile = userDir.resolve("downloaded.txt").toString();
 
             List<String> command = new ArrayList<>();
-            command.add("yt-dlp");
+            command.add(ytDlpPath);
 
             // Dựng lệnh định dạng (Format) dựa trên Tùy chọn của người dùng
             if ("AUDIO".equalsIgnoreCase(job.getDownloadType())) {
@@ -303,7 +333,7 @@ public class DownloaderService {
             // MMO Features: Strip all metadata for Re-up safety if requested
             if (job.isCleanMetadata()) {
                 command.add("--postprocessor-args");
-                command.add("ffmpeg:-map_metadata -1");
+                command.add(ffmpegPath + ":-map_metadata -1");
             }
 
             // Cut specific time sections if provided
@@ -390,6 +420,15 @@ public class DownloaderService {
             command.add(job.getUrl());
 
             ProcessBuilder pb = new ProcessBuilder(command);
+            
+            // Fix: Add bin folder and Node.js folder to PATH so yt-dlp can find ffmpeg and JS runtime.
+            // This resides in D:\Dev-Project\system-design\bin and the system Node path.
+            Map<String, String> env = pb.environment();
+            String path = env.getOrDefault("Path", "");
+            String localBin = new File("bin").getAbsolutePath();
+            String nodePath = "C:\\nvm4w\\nodejs";
+            env.put("Path", localBin + File.pathSeparator + nodePath + File.pathSeparator + path);
+            
             pb.redirectErrorStream(true);
             Process process = pb.start();
 
@@ -485,6 +524,49 @@ public class DownloaderService {
         if (job.getWatermarkText() != null && !job.getWatermarkText().isEmpty()) {
             applyWatermarkToThumbnails(job);
         }
+
+        // Feature: Tạo meta.json cho Chỉnh sửa ảnh (Thumbnail SEO)
+        generateMetaJson(job);
+    }
+
+    /**
+     * Tạo file meta.json trong thư mục job chứa thông tin về các file ảnh đã tải.
+     * Cần thiết để hỗ trợ "Chỉnh sửa ảnh" (Thumbnail Editor) tìm thấy file PNG/JPG.
+     */
+    private void generateMetaJson(Job job) {
+        try {
+            Path jobDir = Paths.get(downloadDir, job.getId());
+            if (!Files.exists(jobDir)) return;
+
+            List<String> imageFiles = new ArrayList<>();
+            Files.walk(jobDir)
+                .filter(Files::isRegularFile)
+                .forEach(p -> {
+                    String name = p.getFileName().toString();
+                    String ext = name.toLowerCase();
+                    if (ext.endsWith(".jpg") || ext.endsWith(".jpeg") || ext.endsWith(".png") || ext.endsWith(".webp")) {
+                        imageFiles.add(name);
+                    }
+                });
+
+            Map<String, Object> meta = new HashMap<>();
+            meta.put("jobId", job.getId());
+            meta.put("url", job.getUrl());
+            meta.put("title", job.getVideoTitle());
+            meta.put("images", imageFiles);
+
+            // Register each image as a valid entry to prevent "Not found in meta.json" errors
+            for (String img : imageFiles) {
+                meta.put(img, Map.of("processed", false, "timestamp", System.currentTimeMillis()));
+            }
+
+            Path metaPath = jobDir.resolve("meta.json");
+            objectMapper.writeValue(metaPath.toFile(), meta);
+            job.addLog("✅ Đã tạo meta.json cho thumbnail (" + imageFiles.size() + " ảnh)");
+
+        } catch (Exception e) {
+            job.addLog("⚠️ Cảnh báo: Không thể tạo meta.json: " + e.getMessage());
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -533,7 +615,7 @@ public class DownloaderService {
                         String outPath = inPath.replace(".jpg", "_wm.jpg");
 
                         List<String> cmd = new ArrayList<>();
-                        cmd.add("ffmpeg");
+                        cmd.add(ffmpegPath);
                         cmd.add("-y");
                         cmd.add("-i"); cmd.add(inPath);
                         cmd.add("-vf");

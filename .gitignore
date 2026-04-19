@@ -66,5 +66,6 @@ cookies.txt.txt
 yt-downloads/
 downloads/
 downloaded.txt
+bin/
 
 .agent/*

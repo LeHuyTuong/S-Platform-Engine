@@ -7,6 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/admin.css}">
+    <link rel="icon" type="image/png" th:href="@{/favicon.png}">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 
@@ -44,6 +45,19 @@
                 <a href="/downloader" class="back-link" style="margin-top:4px; display:inline-flex">← Về trang tải</a>
             </div>
             <span class="badge-admin">Administrator</span>
+        </div>
+
+        <!-- Dependency Warnings -->
+        <div th:if="${!isYtDlpInstalled || !isFfmpegInstalled}" class="dependency-alert">
+            <div class="icon">⚠️</div>
+            <div>
+                <h4>Phát hiện thiếu thành phần hệ thống</h4>
+                <p>
+                    <span th:if="${!isYtDlpInstalled}">● <b>yt-dlp</b> (Không tìm thấy). </span>
+                    <span th:if="${!isFfmpegInstalled}">● <b>ffmpeg</b> (Không tìm thấy). </span>
+                    Hãy kiểm tra thư mục <code>bin/</code> hoặc biến PATH để tránh lỗi khi tải video.
+                </p>
+            </div>
         </div>
 
         <!-- Stats Row -->
@@ -112,32 +126,10 @@
                     </div>
                     <div style="margin-top: 20px; display: flex; gap: 10px;">
                         <button class="btn-primary-custom" onclick="saveSettings()">Lưu cấu hình</button>
+                        <button class="btn-primary-custom" style="padding: 10px; background: var(--secondary);" onclick="backfillTitles()">
+                            📝 Cập nhật Tiêu đề cho Job cũ
+                        </button>
                     </div>
-                </div>
-            </div>
-
-            <!-- Storage Manager -->
-            <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">Quản lý lưu trữ</span>
-                </div>
-                <div class="panel-body">
-                    <p style="color: var(--muted); font-size: 13px; margin-bottom: 16px;">
-                        Xoá tất cả file video, audio đã tải về server để giải phóng ổ cứng.
-                        File cookies.txt và lịch sử download sẽ được giữ.
-                    </p>
-                    <div
-                        style="background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-                        <div style="font-size: 12px; color: var(--danger); font-weight: 600; margin-bottom: 4px;">Cảnh báo</div>
-                        <div style="font-size: 12px; color: var(--muted);">Hành động này không thể hoàn tác. Tất cả file
-                            tải sẽ bị xoá vĩnh viễn.</div>
-                    </div>
-                    <button class="btn-danger-custom" style="width: 100%; padding: 10px;" onclick="clearStorage()">
-                        Xoá toàn bộ thư mục Downloads
-                    </button>
-                    <button class="btn-primary-custom" style="width: 100%; padding: 10px; margin-top: 10px;" onclick="backfillTitles()">
-                        📝 Cập nhật Tiêu đề cho Job cũ
-                    </button>
                 </div>
             </div>
 
@@ -169,9 +161,12 @@
                                         <div class="url-cell" th:title="${job.url}"
                                             th:text="${job.videoTitle != null ? job.videoTitle : (job.playlistTitle != null ? job.playlistTitle : job.url)}">Tiêu đề
                                         </div>
-                                        <div th:if="${job.errorMessage != null}"
-                                            style="font-size: 11px; color: var(--danger); margin-top: 3px;"
-                                            th:text="${job.errorMessage}"></div>
+                                        <div th:if="${job.errorMessage != null}" class="error-wrapper">
+                                            <div class="error-toggle" onclick="$(this).next().toggleClass('show')">
+                                                <span>⚠️ Lỗi xử lý</span> <small>(Click để xem)</small>
+                                            </div>
+                                            <div class="error-content" th:text="${job.errorMessage}"></div>
+                                        </div>
                                     </td>
                                     <td>
                                         <span th:if="${job.user != null}">
@@ -303,10 +298,7 @@
             });
         }
 
-        // Tự động backfill khi trang admin load
-        $(document).ready(function() {
-            backfillTitles();
-        });
+        // backfillTitles() chỉ gọi khi click nút "Cập nhật Tiêu đề" — không tự động khi load trang
 
         function resubmitJob(id) {
             if (!id) return;
