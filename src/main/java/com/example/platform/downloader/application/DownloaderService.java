@@ -120,6 +120,7 @@ public class DownloaderService {
             job.setProgressPercent(100.0);
             job.setDownloadSpeed(null);
             job.setEta(null);
+            persistRuntimeProgress(job);
         } catch (ClassifiedDownloadException e) {
             throw e;
         } catch (Exception e) {
@@ -161,6 +162,7 @@ public class DownloaderService {
                     job.setErrorMessage(line);
                     jobEventService.appendError(job, line);
                 }
+                persistRuntimeProgress(job);
             }
         }
     }
@@ -186,5 +188,12 @@ public class DownloaderService {
             return providerRegistry.byPlatform(job.getPlatform());
         }
         return providerRegistry.detect(job.getUrl());
+    }
+
+    private void persistRuntimeProgress(Job job) {
+        if (job.getId() == null) {
+            return;
+        }
+        downloadArtifactService.persistRuntimeProgress(job);
     }
 }

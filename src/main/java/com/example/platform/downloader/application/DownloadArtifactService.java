@@ -1,9 +1,9 @@
 package com.example.platform.downloader.application;
 
 import com.example.platform.downloader.application.job.JobEventService;
-import com.example.platform.downloader.domain.enums.FailureCategory;
 import com.example.platform.downloader.domain.entity.Job;
 import com.example.platform.downloader.domain.entity.StoredAsset;
+import com.example.platform.downloader.domain.enums.FailureCategory;
 import com.example.platform.downloader.domain.enums.StoredAssetType;
 import com.example.platform.downloader.exception.ClassifiedDownloadException;
 import com.example.platform.downloader.infrastructure.AppSettings;
@@ -22,17 +22,16 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 
 @Service
 public class DownloadArtifactService {
@@ -126,7 +125,6 @@ public class DownloadArtifactService {
         if (job.getWatermarkText() != null && !job.getWatermarkText().isBlank()) {
             applyWatermarkToThumbnails(job);
         }
-        maybePromoteFriendlyJobDirectory(job, jobDirectory(job));
         syncStoredAssets(job);
         enforceMaxFileSize(job);
         generateManifest(job);
@@ -139,6 +137,26 @@ public class DownloadArtifactService {
         }
         cleanUpStaleFiles(jobDir);
         deleteEmptyDirectories(jobDir);
+        try {
+            if (Files.exists(jobDir) && isDirectoryEmpty(jobDir)) {
+                Files.deleteIfExists(jobDir);
+            }
+        } catch (IOException ignored) {
+        }
+    }
+
+    public void persistRuntimeProgress(Job job) {
+        jobRepository.updateRuntimeProgress(
+                job.getId(),
+                job.getProgressPercent(),
+                job.getDownloadSpeed(),
+                job.getEta(),
+                job.getPlaylistTitle(),
+                job.getVideoTitle(),
+                job.getCurrentItem(),
+                job.getTotalItems(),
+                job.getErrorMessage()
+        );
     }
 
     private void syncStoredAssets(Job job) {
@@ -176,8 +194,10 @@ public class DownloadArtifactService {
                 .sum();
         long maxBytes = maxMb * 1024 * 1024;
         if (totalBytes > maxBytes) {
-            throw new ClassifiedDownloadException(FailureCategory.PROCESS_ERROR,
-                    "Kich thuoc tai ve vuot gioi han " + maxMb + "MB");
+            throw new ClassifiedDownloadException(
+                    FailureCategory.PROCESS_ERROR,
+                    "Kich thuoc tai ve vuot gioi han " + maxMb + "MB"
+            );
         }
     }
 
@@ -247,81 +267,6 @@ public class DownloadArtifactService {
         return Paths.get("jobs", folderName).toString();
     }
 
-    private void maybePromoteFriendlyJobDirectory(Job job, Path currentDir) {
-        String targetRelative = friendlyJobDirectory(job);
-        String currentRelative = defaultString(job.getDownloadPath(), relativeJobDirectory(job.getId()));
-        if (targetRelative.equals(currentRelative)) {
-            return;
-        }
-
-        Path targetDir = resolveJobDirectory(targetRelative);
-        try {
-            if (Files.exists(currentDir) && !Files.exists(targetDir)) {
-                Files.createDirectories(targetDir.getParent());
-                moveDirectory(currentDir, targetDir);
-            }
-            job.setDownloadPath(targetRelative);
-            jobRepository.save(job);
-        } catch (Exception e) {
-            jobEventService.appendWarn(job, "Khong the doi ten folder job: " + e.getMessage());
-        }
-    }
-
-    private void moveDirectory(Path source, Path target) throws IOException {
-        try {
-            Files.move(source, target);
-        } catch (AtomicMoveNotSupportedException ignored) {
-            Files.move(source, target);
-        }
-    }
-
-    private String friendlyJobDirectory(Job job) {
-        String preferredName = firstNonBlank(job.getPlaylistTitle(), job.getVideoTitle(), job.getExternalItemId(), "job");
-        String slug = slugify(preferredName);
-        String suffix = safeShortId(job.getId());
-        return relativeJobDirectory(slug + "-" + suffix);
-    }
-
-    private String slugify(String input) {
-        if (input == null || input.isBlank()) {
-            return "job";
-        }
-        String normalized = Normalizer.normalize(input, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}+", "")
-                .replace('\u0111', 'd')
-                .replace('\u0110', 'D');
-        String slug = normalized.toLowerCase(Locale.ROOT)
-                .replaceAll("[\\\\/:*?\"<>|]", " ")
-                .replaceAll("[^a-z0-9\\s._-]", " ")
-                .replaceAll("\\s+", "-")
-                .replaceAll("-{2,}", "-")
-                .replaceAll("^[.-]+|[.-]+$", "");
-        if (slug.isBlank()) {
-            return "job";
-        }
-        return slug.length() > 80 ? slug.substring(0, 80).replaceAll("[.-]+$", "") : slug;
-    }
-
-    private String safeShortId(String jobId) {
-        if (jobId == null || jobId.isBlank()) {
-            return "job";
-        }
-        String normalized = jobId.replaceAll("[^a-zA-Z0-9]", "");
-        if (normalized.isBlank()) {
-            return "job";
-        }
-        return normalized.length() > 8 ? normalized.substring(0, 8).toLowerCase(Locale.ROOT) : normalized.toLowerCase(Locale.ROOT);
-    }
-
-    private String firstNonBlank(String... values) {
-        for (String value : values) {
-            if (value != null && !value.isBlank()) {
-                return value;
-            }
-        }
-        return null;
-    }
-
     private boolean isDownloadArtifact(Path path) {
         String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
         return !name.endsWith(".part")
@@ -352,14 +297,20 @@ public class DownloadArtifactService {
                     .sorted((left, right) -> Integer.compare(right.getNameCount(), left.getNameCount()))
                     .filter(Files::isDirectory)
                     .forEach(path -> {
-                        try (java.util.stream.Stream<Path> children = Files.list(path)) {
-                            if (children.findAny().isEmpty()) {
+                        try {
+                            if (isDirectoryEmpty(path)) {
                                 Files.deleteIfExists(path);
                             }
                         } catch (IOException ignored) {
                         }
                     });
         } catch (IOException ignored) {
+        }
+    }
+
+    private boolean isDirectoryEmpty(Path path) throws IOException {
+        try (Stream<Path> children = Files.list(path)) {
+            return children.findAny().isEmpty();
         }
     }
 

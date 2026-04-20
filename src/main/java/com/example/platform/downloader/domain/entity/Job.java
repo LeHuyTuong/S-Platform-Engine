@@ -36,11 +36,9 @@ import java.util.UUID;
  */
 public class Job extends BaseAuditEntity {
 
-    // Mã job ổn định, cũng được dùng làm tên thư mục lưu file.
     @Id
     private String id;
 
-    // Quan hệ sở hữu và quan hệ ngược về request cha.
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
@@ -51,7 +49,6 @@ public class Job extends BaseAuditEntity {
     @JoinColumn(name = "source_request_id")
     private SourceRequest sourceRequest;
 
-    // Nhận diện nguồn và trạng thái vòng đời hiện tại.
     @Column(nullable = false, length = 1000)
     private String url;
 
@@ -75,11 +72,9 @@ public class Job extends BaseAuditEntity {
     @Column(length = 64)
     private FailureCategory failureCategory;
 
-    // Buffer log tạm thời, được hydrate từ `job_events` khi trả status API.
     @Transient
     private List<String> logs;
 
-    // Tùy chọn đầu ra, khóa dedupe và các field hiển thị cho UI.
     private String outputFilename;
     private String playlistTitle;
     private String videoTitle;
@@ -100,7 +95,6 @@ public class Job extends BaseAuditEntity {
     private String titleTemplate;
     private String errorMessage;
 
-    // Metadata lấy ra từ bước resolve hoặc từ output của `yt-dlp`.
     private String authorName;
 
     @Column(columnDefinition = "text")
@@ -111,7 +105,6 @@ public class Job extends BaseAuditEntity {
     private String thumbnailUrl;
     private String availability;
 
-    // Nhóm field phục vụ retry và cơ chế lease giữa nhiều worker.
     private int attemptCount;
     private int maxAttempts = 4;
     private LocalDateTime nextAttemptAt;
@@ -122,14 +115,13 @@ public class Job extends BaseAuditEntity {
     private LocalDateTime finishedAt;
     private String downloadPath;
 
-    // Progress runtime chỉ sống trong memory hoặc response, không persist xuống DB.
-    @Transient
+    @Column(length = 64)
     private String downloadSpeed;
 
-    @Transient
+    @Column(length = 64)
     private String eta;
 
-    @Transient
+    @Column(nullable = false)
     private double progressPercent;
 
     public Job() {

@@ -30,6 +30,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -119,6 +120,45 @@ class DownloadPipelineIntegrationTest {
         verify(telegramNotificationService).notifyJobCompleted(any(Job.class), any(), any());
     }
 
+    @Test
+    @WithMockUser(username = "user@test.com", roles = "USER")
+    void localDispatchPendingDoesNotBlockSchedulerThreadWhileDownloadRuns() throws Exception {
+        doAnswer(invocation -> {
+            Thread.sleep(400L);
+            return null;
+        }).when(downloaderService).executeDownload(any(Job.class), any());
+        when(downloadArtifactService.listJobFiles(anyString())).thenReturn(List.of());
+
+        String responseBody = mockMvc.perform(post("/downloader/api/source-requests")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "sourceUrl": "https://www.youtube.com/watch?v=slow123",
+                                  "platform": "YOUTUBE",
+                                  "sourceType": "DIRECT_URL",
+                                  "downloadType": "VIDEO",
+                                  "quality": "best",
+                                  "format": "mp4"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String sourceRequestId = objectMapper.readTree(responseBody).path("data").path("id").asText();
+        Job job = jobRepository.findBySourceRequestIdOrderByCreatedAtAsc(sourceRequestId).get(0);
+
+        long startedAt = System.nanoTime();
+        outboxDispatcher.dispatchPending();
+        long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L;
+
+        assertThat(elapsedMs).isLessThan(250L);
+
+        Job finalJob = waitForJobState(job.getId(), JobState.COMPLETED, 2000L);
+        assertThat(finalJob.getStatus()).isEqualTo(Job.JobStatus.COMPLETED);
+    }
+
     private Job drainOutboxUntilTerminal(String jobId) throws InterruptedException {
         Job job = jobRepository.findById(jobId).orElseThrow();
         for (int i = 0; i < 10; i++) {
@@ -127,6 +167,19 @@ class DownloadPipelineIntegrationTest {
             boolean noPendingEvents = outboxEventRepository.findAll().stream()
                     .allMatch(event -> event.getStatus() == OutboxStatus.PROCESSED);
             if (job.getState() == JobState.COMPLETED && noPendingEvents) {
+                return job;
+            }
+            Thread.sleep(50L);
+        }
+        return job;
+    }
+
+    private Job waitForJobState(String jobId, JobState expectedState, long timeoutMs) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        Job job = jobRepository.findById(jobId).orElseThrow();
+        while (System.currentTimeMillis() < deadline) {
+            job = jobRepository.findById(jobId).orElseThrow();
+            if (job.getState() == expectedState) {
                 return job;
             }
             Thread.sleep(50L);

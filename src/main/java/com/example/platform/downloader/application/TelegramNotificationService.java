@@ -140,7 +140,7 @@ public class TelegramNotificationService {
                 return;
             }
 
-            Path path = Paths.get(downloadDir, "jobs", job.getId(), file.get("path"));
+            Path path = resolveVideoPath(job, file.get("path"));
             if (!path.toFile().exists()) {
                 return;
             }
@@ -250,5 +250,12 @@ public class TelegramNotificationService {
         if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
         if (bytes < 1024 * 1024 * 1024) return String.format("%.1f MB", bytes / (1024.0 * 1024));
         return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
+    }
+
+    Path resolveVideoPath(Job job, String relativeFilePath) {
+        String downloadPath = (job.getDownloadPath() == null || job.getDownloadPath().isBlank())
+                ? Paths.get("jobs", job.getId()).toString()
+                : job.getDownloadPath();
+        return Paths.get(downloadDir, downloadPath, relativeFilePath);
     }
 }

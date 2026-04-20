@@ -220,6 +220,8 @@ public class DownloadWorkerService {
             jobRepository.save(job);
             downloaderMetricsService.recordJobFailure(job, FailureCategory.UNKNOWN, jobDuration(job));
             telegramNotificationService.notifyJobFailed(job, resolveNotificationUser(job));
+        } finally {
+            jobEventService.clearJobSession(jobId);
         }
     }
 

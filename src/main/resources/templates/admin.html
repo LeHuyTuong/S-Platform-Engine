@@ -89,8 +89,8 @@
             </div>
         </div>
 
-        <!-- Settings Panel (two-column layout) -->
-        <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; margin-bottom: 24px;">
+        <!-- Settings Panel (wider layout) -->
+        <div style="display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px;">
 
             <!-- Settings -->
             <div class="panel">
@@ -175,8 +175,8 @@
                                     </td>
                                     <td>
                                         <span th:if="${job.user != null}">
-                                            <span th:class="'role-' + ${job.user.role}"
-                                                th:text="${job.user.email}"></span>
+                                            <span th:class="'role-' + ${job.user?.role}"
+                                                th:text="${job.user?.email}"></span>
                                         </span>
                                         <span th:unless="${job.user != null}"
                                             style="color: var(--muted)">Anonymous</span>

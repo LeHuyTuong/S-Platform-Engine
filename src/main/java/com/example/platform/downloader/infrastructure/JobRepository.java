@@ -17,6 +17,9 @@ import java.util.List;
 @Repository
 public interface JobRepository extends JpaRepository<Job, String> {
 
+    @Query("select j from Job j left join fetch j.user order by j.createdAt desc")
+    List<Job> findAllByOrderByCreatedAtDesc();
+
     List<Job> findByUserOrderByCreatedAtDesc(User user);
 
     List<Job> findBySourceRequestIdOrderByCreatedAtAsc(String sourceRequestId);
@@ -75,4 +78,29 @@ public interface JobRepository extends JpaRepository<Job, String> {
               and j.leaseExpiresAt < :now
             """)
     List<Job> findExpiredRunningJobs(@Param("state") JobState state, @Param("now") LocalDateTime now);
+
+    @Transactional
+    @Modifying
+    @Query("""
+            update Job j
+            set j.progressPercent = :progressPercent,
+                j.downloadSpeed = :downloadSpeed,
+                j.eta = :eta,
+                j.playlistTitle = coalesce(:playlistTitle, j.playlistTitle),
+                j.videoTitle = coalesce(:videoTitle, j.videoTitle),
+                j.currentItem = coalesce(:currentItem, j.currentItem),
+                j.totalItems = coalesce(:totalItems, j.totalItems),
+                j.errorMessage = coalesce(:errorMessage, j.errorMessage)
+            where j.id = :jobId
+            """)
+    int updateRuntimeProgress(
+            @Param("jobId") String jobId,
+            @Param("progressPercent") double progressPercent,
+            @Param("downloadSpeed") String downloadSpeed,
+            @Param("eta") String eta,
+            @Param("playlistTitle") String playlistTitle,
+            @Param("videoTitle") String videoTitle,
+            @Param("currentItem") Integer currentItem,
+            @Param("totalItems") Integer totalItems,
+            @Param("errorMessage") String errorMessage);
 }

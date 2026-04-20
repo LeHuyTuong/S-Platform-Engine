@@ -10,11 +10,16 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class JobEventService {
 
     private final JobEventRepository jobEventRepository;
+    private final ConcurrentHashMap<String, AtomicLong> sequenceCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, AtomicInteger> trimCounters = new ConcurrentHashMap<>();
 
     public JobEventService(JobEventRepository jobEventRepository) {
         this.jobEventRepository = jobEventRepository;
@@ -25,9 +30,8 @@ public class JobEventService {
         if (job == null || message == null) {
             return;
         }
-        long nextSequence = jobEventRepository.findTopByJobIdOrderBySequenceNoDesc(job.getId())
-                .map(JobEvent::getSequenceNo)
-                .orElse(0L) + 1;
+        AtomicLong sequence = sequenceCache.computeIfAbsent(job.getId(), this::loadSequenceCounter);
+        long nextSequence = sequence.incrementAndGet();
 
         JobEvent event = new JobEvent();
         event.setJob(job);
@@ -35,7 +39,11 @@ public class JobEventService {
         event.setLevel(level);
         event.setMessage(message);
         jobEventRepository.save(event);
-        jobEventRepository.trimToLast500(job.getId());
+        AtomicInteger trimCounter = trimCounters.computeIfAbsent(job.getId(), ignored -> new AtomicInteger());
+        if (trimCounter.incrementAndGet() >= 25) {
+            jobEventRepository.trimToLast500(job.getId());
+            trimCounter.set(0);
+        }
     }
 
     @Transactional
@@ -63,6 +71,21 @@ public class JobEventService {
             messages.add(events.get(i).getMessage());
         }
         return messages;
+    }
+
+    public void clearJobSession(String jobId) {
+        if (jobId == null) {
+            return;
+        }
+        sequenceCache.remove(jobId);
+        trimCounters.remove(jobId);
+    }
+
+    private AtomicLong loadSequenceCounter(String jobId) {
+        long current = jobEventRepository.findTopByJobIdOrderBySequenceNoDesc(jobId)
+                .map(JobEvent::getSequenceNo)
+                .orElse(0L);
+        return new AtomicLong(current);
     }
 }
 

@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -13,6 +14,7 @@ public class JobManager {
 
     private final JobRepository jobRepository;
     private final JobEventService jobEventService;
+    private final ConcurrentHashMap<String, Object> userLocks = new ConcurrentHashMap<>();
 
     public JobManager(JobRepository jobRepository, JobEventService jobEventService) {
         this.jobRepository = jobRepository;
@@ -28,7 +30,7 @@ public class JobManager {
     }
 
     public Object getUserLock(String userId) {
-        return userId.intern();
+        return userLocks.computeIfAbsent(userId, ignored -> new Object());
     }
 
     public List<Job> getAllJobs() {

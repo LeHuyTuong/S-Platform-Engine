@@ -8,6 +8,7 @@ import com.example.platform.downloader.infrastructure.WorkerProperties;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
@@ -21,12 +22,15 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @Component
 /**
  * Chuyển outbox row đã lưu bền thành công việc thực tế cho worker.
  *
- * Nếu tắt Redis thì `dispatchPending()` sẽ publish và xử lý local.
+ * Nếu tắt Redis thì `dispatchPending()` chỉ publish rồi đẩy sang thread pool local.
  * Nếu bật Redis thì row sẽ được đẩy vào stream để worker instance khác consume.
  */
 public class OutboxDispatcher {
@@ -37,6 +41,7 @@ public class OutboxDispatcher {
     private final WorkerProperties workerProperties;
     private final ObjectMapper objectMapper;
     private final StringRedisTemplate stringRedisTemplate;
+    private final ExecutorService workerExecutor;
 
     public OutboxDispatcher(OutboxEventRepository outboxEventRepository,
                             OutboxService outboxService,
@@ -50,6 +55,7 @@ public class OutboxDispatcher {
         this.workerProperties = workerProperties;
         this.objectMapper = objectMapper;
         this.stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
+        this.workerExecutor = Executors.newFixedThreadPool(Math.max(1, workerProperties.getConcurrency()));
     }
 
     @PostConstruct
@@ -66,13 +72,22 @@ public class OutboxDispatcher {
         }
     }
 
+    @PreDestroy
+    public void shutdown() {
+        workerExecutor.shutdown();
+        try {
+            workerExecutor.awaitTermination(5, TimeUnit.SECONDS);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     @Scheduled(fixedDelay = 2000L)
     public void dispatchPending() {
         if (!workerProperties.isEnabled()) {
             return;
         }
 
-        // Các retry có delay sẽ nằm yên ở trạng thái `PENDING` cho tới khi `availableAt` tới hạn.
         List<OutboxEvent> pending = outboxEventRepository
                 .findTop50ByStatusAndAvailableAtLessThanEqualOrderByCreatedAtAsc(
                         OutboxStatus.PENDING,
@@ -87,10 +102,11 @@ public class OutboxDispatcher {
                             Map.of("outboxEventId", event.getId())
                     ));
                     outboxService.markPublished(event, recordId != null ? recordId.getValue() : "n/a");
-                } else {
-                    outboxService.markPublished(event, "local");
-                    process(event);
+                    continue;
                 }
+
+                outboxService.markPublished(event, "local");
+                workerExecutor.submit(() -> process(event.getId()));
             } catch (Exception e) {
                 outboxService.markFailed(event, e.getMessage(), 30);
             }
@@ -113,10 +129,7 @@ public class OutboxDispatcher {
             }
             for (MapRecord<String, Object, Object> record : records) {
                 String outboxEventId = String.valueOf(record.getValue().get("outboxEventId"));
-                OutboxEvent event = outboxEventRepository.findById(outboxEventId).orElse(null);
-                if (event != null) {
-                    process(event);
-                }
+                process(outboxEventId);
                 stringRedisTemplate.opsForStream().acknowledge(
                         workerProperties.getStreamKey(),
                         workerProperties.getConsumerGroup(),
@@ -134,8 +147,12 @@ public class OutboxDispatcher {
         }
     }
 
-    private void process(OutboxEvent event) {
-        // Payload event chỉ chứa id và type tối thiểu; dữ liệu chuẩn luôn được load lại từ DB.
+    private void process(String eventId) {
+        OutboxEvent event = outboxEventRepository.findById(eventId).orElse(null);
+        if (event == null || event.getStatus() == OutboxStatus.PROCESSED) {
+            return;
+        }
+
         try {
             Map<String, Object> payload = objectMapper.readValue(event.getPayload(), new TypeReference<>() {});
             if ("SOURCE_REQUEST_ACCEPTED".equals(event.getEventType())) {

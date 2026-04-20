@@ -58,9 +58,7 @@ public class AdminController {
 
     @GetMapping
     public String dashboard(Model model) {
-        model.addAttribute("jobs", jobRepository.findAll().stream()
-                .sorted(Comparator.comparing(Job::getCreatedAt).reversed())
-                .collect(Collectors.toList()));
+        model.addAttribute("jobs", jobRepository.findAllByOrderByCreatedAtDesc());
         model.addAttribute("users", userRepository.findAll());
         model.addAttribute("settings", appSettings);
         model.addAttribute("diskUsage", getDiskUsageMb());
