@@ -1,63 +1,61 @@
 package com.example.platform.downloader.ui;
 
+import com.example.platform.downloader.application.SourceRequestService;
 import com.example.platform.downloader.domain.Job;
-import com.example.platform.downloader.infrastructure.JobRepository;
 import com.example.platform.downloader.infrastructure.AppSettings;
-import com.example.platform.downloader.application.JobManager;
-import com.example.platform.downloader.application.DownloaderService;
+import com.example.platform.downloader.infrastructure.JobRepository;
 import com.example.platform.kernel.exception.BusinessException;
 import com.example.platform.kernel.exception.ResourceNotFoundException;
 import com.example.platform.kernel.ui.RestResponse;
-
+import com.example.platform.modules.user.infrastructure.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.*;
-
-import com.example.platform.modules.user.infrastructure.UserRepository;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.io.File;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/admin")
 public class AdminController {
 
-    private final JobManager jobManager;
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
     private final AppSettings appSettings;
-    private final DownloaderService downloaderService;
+    private final SourceRequestService sourceRequestService;
     private final String downloadDir;
+    private final String ytDlpPath;
+    private final String ffmpegPath;
 
-    public AdminController(JobManager jobManager,
-                           JobRepository jobRepository,
+    public AdminController(JobRepository jobRepository,
                            UserRepository userRepository,
                            AppSettings appSettings,
-                           DownloaderService downloaderService,
-                           @Value("${app.downloader.output-dir:downloads}") String downloadDir) {
-        this.jobManager = jobManager;
+                           SourceRequestService sourceRequestService,
+                           @Value("${app.downloader.output-dir:downloads}") String downloadDir,
+                           @Value("${app.downloader.yt-dlp-path:yt-dlp}") String ytDlpPath,
+                           @Value("${app.downloader.ffmpeg-path:ffmpeg}") String ffmpegPath) {
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
         this.appSettings = appSettings;
-        this.downloaderService = downloaderService;
+        this.sourceRequestService = sourceRequestService;
         this.downloadDir = downloadDir;
+        this.ytDlpPath = ytDlpPath;
+        this.ffmpegPath = ffmpegPath;
     }
 
-    private boolean checkBinary(String path, String globalCmd) {
-        if (new File(path).exists()) return true;
-        try {
-            Process p = new ProcessBuilder(globalCmd, "--version").start();
-            return p.waitFor() == 0;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    // Trang Admin Dashboard chính
     @GetMapping
     public String dashboard(Model model) {
         model.addAttribute("jobs", jobRepository.findAll().stream()
@@ -66,63 +64,41 @@ public class AdminController {
         model.addAttribute("users", userRepository.findAll());
         model.addAttribute("settings", appSettings);
         model.addAttribute("diskUsage", getDiskUsageMb());
-        
-        // Dependency check
-        model.addAttribute("isYtDlpInstalled", checkBinary("bin/yt-dlp.exe", "yt-dlp"));
-        model.addAttribute("isFfmpegInstalled", checkBinary("bin/ffmpeg.exe", "ffmpeg"));
-        
+        model.addAttribute("isYtDlpInstalled", checkBinary(ytDlpPath, "yt-dlp"));
+        model.addAttribute("isFfmpegInstalled", checkBinary(ffmpegPath, "ffmpeg"));
         return "admin";
     }
 
-    // API: Tải lại (Re-submit) một Job đã hoàn thành hoặc thất bại
     @PostMapping("/api/job/{id}/resubmit")
     @ResponseBody
     public RestResponse<Map<String, String>> resubmitJob(@PathVariable String id) {
         Job job = jobRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Job not found"));
-        if (job.getUser() == null) throw new BusinessException("Job không có người dùng.");
-
+        if (job.getUser() == null) {
+            throw new BusinessException("Job không có người dùng.");
+        }
         try {
-            Map<String, String> payload = new LinkedHashMap<>();
-            payload.put("url", job.getUrl());
-            payload.put("type", job.getDownloadType() != null ? job.getDownloadType() : "VIDEO");
-            payload.put("quality", job.getQuality() != null ? job.getQuality() : "best");
-            payload.put("format", job.getFormat() != null ? job.getFormat() : "mp4");
-            if (job.getProxy() != null) payload.put("proxy", job.getProxy());
-            if (job.getStartTime() != null) payload.put("startTime", job.getStartTime());
-            if (job.getEndTime() != null) payload.put("endTime", job.getEndTime());
-            payload.put("cleanMetadata", job.isCleanMetadata() ? "true" : "false");
-            payload.put("writeThumbnail", job.isWriteThumbnail() ? "true" : "false");
-            if (job.getWatermarkText() != null) payload.put("watermarkText", job.getWatermarkText());
-            if (job.getTitleTemplate() != null) payload.put("titleTemplate", job.getTitleTemplate());
-
-            Job newJob = downloaderService.submitDownload(payload, job.getUser());
-            return RestResponse.ok(null, "✅ Đã tải lại thành công! Job mới: " + newJob.getId().substring(0, 8) + "...");
-        } catch (Exception e) {
+            Job newJob = sourceRequestService.resubmit(job);
+            return RestResponse.ok(Map.of("jobId", newJob.getId()), "Đã tạo job mới: " + newJob.getId());
+        } catch (IllegalArgumentException e) {
             throw new BusinessException(e.getMessage());
         }
     }
 
-
-    // API: Tự động lấy tiêu đề cho tất cả job chưa có title (gọi 1 lần sau deploy)
     @PostMapping("/api/jobs/backfill-titles")
     @ResponseBody
     public RestResponse<Void> backfillTitles() {
         List<Job> jobs = jobRepository.findAll();
         int updated = 0;
         for (Job job : jobs) {
-            if (job.getVideoTitle() == null || job.getVideoTitle().isBlank()) {
-                String title = downloaderService.fetchVideoTitle(job.getUrl());
-                if (title != null && !title.isBlank()) {
-                    job.setVideoTitle(title);
-                    jobRepository.save(job);
-                    updated++;
-                }
+            if ((job.getVideoTitle() == null || job.getVideoTitle().isBlank()) && job.getExternalItemId() != null) {
+                job.setVideoTitle(job.getExternalItemId());
+                jobRepository.save(job);
+                updated++;
             }
         }
-        return RestResponse.ok(null, "✅ Đã cập nhật tiêu đề cho " + updated + " job.");
+        return RestResponse.ok(null, "Đã cập nhật tiêu đề cho " + updated + " job.");
     }
 
-    // API: Cập nhật cấu hình hệ thống (nóng - không cần restart)
     @PostMapping("/api/settings")
     @ResponseBody
     public RestResponse<Void> updateSettings(@RequestBody Map<String, String> body) {
@@ -135,14 +111,14 @@ public class AdminController {
                 appSettings.setSleepRequests(Integer.parseInt(body.get("sleepRequests")));
             if (body.containsKey("retries"))
                 appSettings.setRetries(Integer.parseInt(body.get("retries")));
-
+            if (body.containsKey("maxFileSizeMb"))
+                appSettings.setMaxFileSizeMb(Long.parseLong(body.get("maxFileSizeMb")));
             return RestResponse.ok(null, "Cấu hình đã được cập nhật thành công.");
         } catch (NumberFormatException e) {
             throw new BusinessException("Định dạng số không hợp lệ: " + e.getMessage());
         }
     }
 
-    // API: Lấy settings hiện tại
     @GetMapping("/api/settings")
     @ResponseBody
     public RestResponse<Map<String, Object>> getSettings() {
@@ -151,18 +127,34 @@ public class AdminController {
         result.put("concurrentFragments", appSettings.getConcurrentFragments());
         result.put("sleepRequests", appSettings.getSleepRequests());
         result.put("retries", appSettings.getRetries());
+        result.put("maxFileSizeMb", appSettings.getMaxFileSizeMb());
         result.put("diskUsageMb", getDiskUsageMb());
         return RestResponse.ok(result);
     }
 
-    // Tính dung lượng thư mục downloads (MB)
+    private boolean checkBinary(String path, String globalCmd) {
+        if (new File(path).exists()) return true;
+        try {
+            Process process = new ProcessBuilder(globalCmd, "--version").start();
+            return process.waitFor() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private double getDiskUsageMb() {
         try {
             Path dir = Paths.get(downloadDir);
             if (!Files.exists(dir)) return 0;
             return Files.walk(dir)
                     .filter(Files::isRegularFile)
-                    .mapToLong(p -> { try { return Files.size(p); } catch (Exception e) { return 0; } })
+                    .mapToLong(path -> {
+                        try {
+                            return Files.size(path);
+                        } catch (Exception e) {
+                            return 0;
+                        }
+                    })
                     .sum() / (1024.0 * 1024.0);
         } catch (Exception e) {
             return 0;

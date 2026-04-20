@@ -1,5 +1,8 @@
 package com.example.platform.modules.user.infrastructure;
 
+import com.example.platform.modules.user.domain.Role;
+import com.example.platform.modules.user.domain.User;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -9,35 +12,31 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
-import org.springframework.boot.CommandLineRunner;
-import com.example.platform.modules.user.domain.Role;
-import com.example.platform.modules.user.domain.User;
-
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity  // Bật @PreAuthorize / @PostAuthorize trên các @Service/@RestController
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable()) // Disabled for simplicity during prototyping APIs
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/downloader/api/submit").authenticated()
-                .requestMatchers("/downloader/api/runtime-settings",
-                                 "/downloader/api/runtime-settings/**")
-                    .hasAnyRole("ADMIN", "PUBLISHER")  // Backup ngoài @PreAuthorize
-                .requestMatchers("/admin/**").hasRole("ADMIN")
-                .anyRequest().permitAll()
-            )
-            .formLogin(form -> form
-                .defaultSuccessUrl("/downloader")
-                .permitAll()
-            )
-            .logout(logout -> logout
-                .logoutSuccessUrl("/downloader")
-                .permitAll()
-            );
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/downloader/api/runtime-settings",
+                                "/downloader/api/runtime-settings/**")
+                        .hasAnyRole("ADMIN", "PUBLISHER")
+                        .requestMatchers("/downloader/api/**", "/downloader/files/**").authenticated()
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
+                        .anyRequest().permitAll()
+                )
+                .formLogin(form -> form
+                        .defaultSuccessUrl("/downloader", true)
+                        .permitAll()
+                )
+                .logout(logout -> logout
+                        .logoutSuccessUrl("/downloader")
+                        .permitAll()
+                );
         return http.build();
     }
 

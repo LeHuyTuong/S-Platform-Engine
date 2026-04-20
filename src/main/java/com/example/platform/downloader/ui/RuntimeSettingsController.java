@@ -1,99 +1,74 @@
 package com.example.platform.downloader.ui;
 
+import com.example.platform.downloader.application.UserConnectionSettingsService;
 import com.example.platform.downloader.domain.RuntimeSettings;
-import com.example.platform.downloader.application.SessionSettingsService;
 import com.example.platform.kernel.exception.BusinessException;
+import com.example.platform.kernel.exception.ResourceNotFoundException;
 import com.example.platform.kernel.ui.RestResponse;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.http.ResponseEntity;
+import com.example.platform.modules.user.domain.User;
+import com.example.platform.modules.user.infrastructure.UserRepository;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.servlet.http.HttpSession;
+import java.security.Principal;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Optional;
 
-/**
- * REST API để quản lý RuntimeSettings trong session.
- *
- * Bảo mật:
- *   - Chỉ ADMIN hoặc PUBLISHER mới được gọi
- *   - GET không trả raw token — chỉ trả boolean hasXxx
- *   - DELETE xóa sạch settings khỏi session hiện tại
- *
- * Endpoints:
- *   POST   /downloader/api/runtime-settings  → lưu settings
- *   GET    /downloader/api/runtime-settings  → trả masked status
- *   DELETE /downloader/api/runtime-settings  → xóa settings
- */
 @RestController
 @RequestMapping("/downloader/api/runtime-settings")
 @PreAuthorize("hasAnyRole('ADMIN', 'PUBLISHER')")
 public class RuntimeSettingsController {
 
-    private static final Logger log = LoggerFactory.getLogger(RuntimeSettingsController.class);
+    private final UserConnectionSettingsService userConnectionSettingsService;
+    private final UserRepository userRepository;
 
-    private final SessionSettingsService sessionSettingsService;
-
-    public RuntimeSettingsController(SessionSettingsService sessionSettingsService) {
-        this.sessionSettingsService = sessionSettingsService;
+    public RuntimeSettingsController(UserConnectionSettingsService userConnectionSettingsService,
+                                     UserRepository userRepository) {
+        this.userConnectionSettingsService = userConnectionSettingsService;
+        this.userRepository = userRepository;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // POST — lưu settings vào session
-    // ─────────────────────────────────────────────────────────────────────────
-
     @PostMapping
-    public RestResponse<Void> saveSettings(@RequestBody RuntimeSettings incoming, HttpSession session) {
+    public RestResponse<Void> saveSettings(@RequestBody RuntimeSettings incoming, Principal principal) {
+        User user = currentUser(principal);
         try {
-            sessionSettingsService.save(incoming, session);
-            return RestResponse.ok(null, "✅ Settings đã được lưu vào session (tự xoá sau 30 phút).");
+            userConnectionSettingsService.save(incoming, user);
+            return RestResponse.ok(null, "Settings đã được lưu an toàn.");
         } catch (IllegalArgumentException e) {
-            log.warn("[RuntimeSettings] Validation failed: {}", e.getMessage());
             throw new BusinessException(e.getMessage());
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // GET — trả về trạng thái masked (boolean only, không raw token)
-    // ─────────────────────────────────────────────────────────────────────────
-
     @GetMapping
-    public RestResponse<Map<String, Object>> getSettingsStatus(HttpSession session) {
-        Optional<RuntimeSettings> opt = sessionSettingsService.get(session);
-
+    public RestResponse<Map<String, Object>> getSettingsStatus(Principal principal) {
+        User user = currentUser(principal);
+        RuntimeSettings masked = userConnectionSettingsService.getMasked(user);
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("hasSettings", opt.isPresent());
-
-        if (opt.isPresent()) {
-            RuntimeSettings rs = opt.get();
-            // Chỉ trả boolean — KHÔNG expose raw token/secret
-            result.put("hasTelegramToken",           rs.hasTelegramBotToken());
-            result.put("hasTelegramChatId",          rs.hasTelegramChatId());
-            result.put("hasGoogleDriveServiceAccount", rs.hasGoogleDriveServiceAccountJson());
-            result.put("hasGoogleDriveFolderId",      rs.hasGoogleDriveFolderId());
-            result.put("hasBaseUrl",                  rs.hasBaseUrl());
-        } else {
-            result.put("hasTelegramToken",           false);
-            result.put("hasTelegramChatId",          false);
-            result.put("hasGoogleDriveServiceAccount", false);
-            result.put("hasGoogleDriveFolderId",      false);
-            result.put("hasBaseUrl",                  false);
-        }
-
+        result.put("hasSettings", masked.isValid());
+        result.put("hasTelegramToken", masked.hasTelegramBotToken());
+        result.put("hasTelegramChatId", masked.hasTelegramChatId());
+        result.put("hasGoogleDriveServiceAccount", masked.hasGoogleDriveServiceAccountJson());
+        result.put("hasGoogleDriveFolderId", masked.hasGoogleDriveFolderId());
+        result.put("hasBaseUrl", masked.hasBaseUrl());
         return RestResponse.ok(result);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // DELETE — xóa settings khỏi session
-    // ─────────────────────────────────────────────────────────────────────────
-
     @DeleteMapping
-    public RestResponse<Void> clearSettings(HttpSession session) {
-        sessionSettingsService.clear(session);
-        return RestResponse.ok(null, "✅ Settings đã được xóa khỏi session.");
+    public RestResponse<Void> clearSettings(Principal principal) {
+        userConnectionSettingsService.clear(currentUser(principal));
+        return RestResponse.ok(null, "Settings đã được xóa.");
+    }
+
+    private User currentUser(Principal principal) {
+        if (principal == null) {
+            throw new BusinessException("Bạn chưa đăng nhập");
+        }
+        return userRepository.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 }

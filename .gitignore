@@ -61,6 +61,7 @@ buildNumber
 # Secrets
 cookies.txt
 cookies.txt.txt
+test_cookies.txt
 
 # Downloads (Copyrighted content)
 yt-downloads/

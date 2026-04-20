@@ -1,6 +1,7 @@
 package com.example.platform.modules.user.domain;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -21,6 +22,7 @@ public class User extends BaseAuditEntity {
     private String email;
 
     @Column(nullable = false)
+    @JsonIgnore
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)

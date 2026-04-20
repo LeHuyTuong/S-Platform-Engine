@@ -42,12 +42,21 @@
                     <div class="dl-card-header">
                         <span class="dl-card-icon">🍪</span>
                         <span class="dl-card-title">Cookies</span>
+                        <span class="dl-badge-off" id="cookieStatusBadge">Checking provider status...</span>
                         <span th:if="${hasCookies}" class="dl-badge-ok">● Đang kích hoạt</span>
                         <span th:unless="${hasCookies}" class="dl-badge-off">Chưa có cookie</span>
                     </div>
                     <div class="dl-card-body">
                         <div class="row g-2 align-items-center">
-                            <div class="col-md-8">
+                            <div class="col-md-3">
+                                <select class="dl-select" id="cookiePlatformSelect">
+                                    <option value="YOUTUBE">YouTube</option>
+                                    <option value="TIKTOK">TikTok</option>
+                                    <option value="INSTAGRAM">Instagram</option>
+                                    <option value="FACEBOOK">Facebook</option>
+                                </select>
+                            </div>
+                            <div class="col-md-5">
                                 <input type="file" class="form-control form-control-sm" id="cookieFileInput" accept=".txt">
                                 <div class="dl-hint">Xuất cookie từ trình duyệt bằng plugin "Get cookies.txt"</div>
                             </div>
@@ -122,10 +131,10 @@
                             <!-- Actions -->
                             <div class="d-flex gap-2 mt-3">
                                 <button class="dl-btn dl-btn-primary dl-btn-sm" id="rtSaveBtn" onclick="saveRuntimeSettings()">
-                                    💾 Lưu vào Session
+                                    Save Config
                                 </button>
                                 <button class="dl-btn dl-btn-danger dl-btn-sm" id="rtClearBtn" onclick="clearRuntimeSettings()">
-                                    🗑 Xoá Session
+                                    Clear Saved Config
                                 </button>
                             </div>
                         </div>
@@ -162,6 +171,25 @@
                                     <option value="1080">1080p</option>
                                     <option value="720">720p</option>
                                     <option value="480">480p</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <select id="platformSelect" class="dl-select">
+                                    <option value="AUTO">Auto platform</option>
+                                    <option value="YOUTUBE">YouTube</option>
+                                    <option value="TIKTOK">TikTok</option>
+                                    <option value="INSTAGRAM">Instagram</option>
+                                    <option value="FACEBOOK">Facebook</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <select id="sourceTypeSelect" class="dl-select">
+                                    <option value="AUTO">Auto source type</option>
+                                    <option value="DIRECT_URL">Direct URL</option>
+                                    <option value="PLAYLIST">Playlist</option>
+                                    <option value="PROFILE">Profile</option>
                                 </select>
                             </div>
                         </div>
@@ -262,7 +290,9 @@
                                     <div class="dl-job-error" th:if="${job.errorMessage != null}" th:text="${job.errorMessage}">Error</div>
                                 </div>
                                 <div>
-                                    <span class="dl-status-badge" th:classappend="${'status-' + job.status}" th:text="${job.status}">STATUS</span>
+                                    <span class="dl-status-badge"
+                                          th:classappend="${'status-' + (job.state != null ? job.state : job.status)}"
+                                          th:text="${job.state != null ? job.state : job.status}">STATUS</span>
                                 </div>
                             </div>
                         </th:block>
@@ -338,6 +368,7 @@
         let speedChart = null;
         const speedHistory = [];
         const MAX_HISTORY = 30;
+        let providerCredentialStatus = {};
 
         // Init Chart.js Speed Chart
         function initSpeedChart() {
@@ -384,8 +415,44 @@
             speedChart.update('none');
         }
 
+        function bootstrapEnhancedUi() {
+            $('#cookieStatusBadge').siblings('.dl-badge-ok, .dl-badge-off').remove();
+            $('#uploadCookieBtn').text('Upload');
+            if ($('#deleteCookieBtn').length === 0) {
+                $('<button class="dl-btn dl-btn-sm dl-btn-danger" id="deleteCookieBtn">Delete</button>')
+                    .appendTo($('#uploadCookieBtn').parent());
+            } else {
+                $('#deleteCookieBtn').text('Delete');
+            }
+
+            const cookieHint = $('#cookieFileInput').next('.dl-hint');
+            if (cookieHint.length) {
+                cookieHint.text('1 cookie bundle per provider. Public content remains the default path.');
+            }
+
+            const runtimeCard = $('#runtimeSettingsPanel').closest('.dl-card');
+            runtimeCard.find('.dl-alert-warning').html(
+                'Settings are persisted per user and encrypted at rest.<br>' +
+                'API status only returns masked flags, never raw secrets.'
+            );
+            $('#rtDriveJson').next('.dl-hint')
+                .text('Saved encrypted with AES-GCM. Raw value is not returned to the browser after save.');
+            $('#rtSaveBtn').text('Save Config');
+            $('#rtClearBtn').text('Clear Saved Config');
+
+            if (!$('.dl-user-badge').length) {
+                $('#cookiePlatformSelect, #cookieFileInput, #uploadCookieBtn, #deleteCookieBtn').prop('disabled', true);
+            }
+        }
+
         $(document).ready(function () {
             initSpeedChart();
+            bootstrapEnhancedUi();
+            if ($('.dl-user-badge').length) {
+                loadProviderCredentialStatus();
+            } else {
+                $('#cookieStatusBadge').attr('class', 'dl-badge-off').text('Login required');
+            }
 
             // CSRF setup
             var token = $("meta[name='_csrf']").attr("content");
@@ -428,30 +495,39 @@
                 let url = $('#urlInput').val().trim();
                 if (!url) {
                     showAlert('Vui lòng nhập URL!', 'danger');
-                    return;
                 }
 
                 $(this).prop('disabled', true).text('Đang gửi...');
 
                 $.ajax({
-                    url: '/downloader/api/submit',
+                    url: '/downloader/api/source-requests',
                     type: 'POST',
                     contentType: 'application/json',
                     data: JSON.stringify({
-                        url: url,
-                        type: $('#typeSelect').val(),
+                        sourceUrl: url,
+                        platform: $('#platformSelect').val(),
+                        sourceType: $('#sourceTypeSelect').val(),
+                        downloadType: $('#typeSelect').val(),
                         quality: $('#qualitySelect').val(),
                         format: $('#formatSelect').val(),
-                        proxy: $('#proxyInput').val(),
+                        proxy: $('#proxyInput').val() || null,
                         startTime: $('#startTimeInput').val(),
                         endTime: $('#endTimeInput').val(),
-                        cleanMetadata: $('#cleanMetadataCheck').is(':checked') ? 'true' : 'false',
-                        writeThumbnail: $('#writeThumbnailCheck').is(':checked') ? 'true' : 'false',
+                        cleanMetadata: $('#cleanMetadataCheck').is(':checked'),
+                        writeThumbnail: $('#writeThumbnailCheck').is(':checked'),
                         watermarkText: $('#watermarkInput').val(),
                         titleTemplate: $('#titleTemplateInput').val()
                     }),
                     success: function (resp) {
                         const job = resp.data;
+                        const childJobs = job && job.jobs ? job.jobs : [];
+                        const acceptedMessage = childJobs.length > 0
+                            ? 'Accepted source request: ' + job.id + '. Child jobs: ' + childJobs.length
+                            : 'Accepted source request: ' + job.id + '. Waiting for resolver/worker.';
+                        showAlert(acceptedMessage, 'success');
+                        $('#urlInput').val('');
+                        setTimeout(() => location.reload(), 1200);
+                        return;
                         showAlert('✅ Đã tạo Job thành công! ID: ' + job.id, 'success');
                         $('#urlInput').val('');
                         setTimeout(() => location.reload(), 1200);
@@ -468,22 +544,28 @@
             $('#uploadCookieBtn').click(function () {
                 var fileInput = document.getElementById('cookieFileInput');
                 if (!fileInput.files[0]) { alert('Vui lòng chọn file cookie'); return; }
+                var platform = $('#cookiePlatformSelect').val();
                 var formData = new FormData();
                 formData.append('file', fileInput.files[0]);
                 $.ajax({
-                    url: '/downloader/api/upload-cookies', type: 'POST',
+                    url: '/downloader/api/provider-credentials/' + platform + '/cookies', type: 'POST',
                     data: formData, processData: false, contentType: false,
-                    success: function (r) { alert(r.message); location.reload(); },
+                    success: function (r) { alert(r.message); fileInput.value = ''; loadProviderCredentialStatus(platform); },
                     error: function () { alert('Tải lên cookie thất bại'); }
                 });
             });
 
             $('#deleteCookieBtn').click(function () {
                 if (!confirm('Xoá file cookie?')) return;
+                var platform = $('#cookiePlatformSelect').val();
                 $.ajax({
-                    url: '/downloader/api/cookies', type: 'DELETE',
-                    success: function (r) { alert(r.message); location.reload(); }
+                    url: '/downloader/api/provider-credentials/' + platform + '/cookies', type: 'DELETE',
+                    success: function (r) { alert(r.message); loadProviderCredentialStatus(platform); }
                 });
+            });
+
+            $('#cookiePlatformSelect').change(function () {
+                refreshCookieStatusBadge($(this).val());
             });
 
             // Job item click
@@ -499,6 +581,31 @@
             setTimeout(() => $('#alertArea').html(''), 4000);
         }
 
+        function loadProviderCredentialStatus(selectedPlatform) {
+            $.ajax({
+                url: '/downloader/api/provider-credentials/status',
+                type: 'GET',
+                success: function(resp) {
+                    providerCredentialStatus = resp.data || {};
+                    refreshCookieStatusBadge(selectedPlatform || $('#cookiePlatformSelect').val());
+                },
+                error: function(xhr) {
+                    if (xhr.status === 401 || xhr.status === 403) {
+                        $('#cookieStatusBadge').attr('class', 'dl-badge-off').text('Login required');
+                    } else {
+                        $('#cookieStatusBadge').attr('class', 'dl-badge-off').text('Cookie status unavailable');
+                    }
+                }
+            });
+        }
+
+        function refreshCookieStatusBadge(platform) {
+            const hasCookie = !!providerCredentialStatus[platform];
+            $('#cookieStatusBadge')
+                .attr('class', hasCookie ? 'dl-badge-ok' : 'dl-badge-off')
+                .text(platform + ': ' + (hasCookie ? 'cookie configured' : 'no cookie'));
+        }
+
         function selectJob(id) {
             currentJobId = id;
             $('#statusArea, #logCard').show();
@@ -509,6 +616,15 @@
             pollInterval = setInterval(pollJob, 1500);
         }
 
+        function effectiveJobBadge(job) {
+            return job.state || job.status || 'UNKNOWN';
+        }
+
+        function isTerminalJob(job) {
+            const state = effectiveJobBadge(job);
+            return state === 'COMPLETED' || state === 'FAILED' || state === 'BLOCKED';
+        }
+
         function pollJob() {
             if (!currentJobId) return;
             $.get('/downloader/api/status/' + currentJobId, function (resp) {
@@ -516,12 +632,24 @@
                 if (!job) return;
 
                 // Status badge
+                const badge = effectiveJobBadge(job);
                 const statusEl = $('#currentStatus');
-                statusEl.text(job.status).attr('class', 'dl-status-badge status-' + job.status);
+                statusEl.text(badge).attr('class', 'dl-status-badge status-' + badge);
+
+                const listItem = $('.dl-job-item[data-id="' + currentJobId + '"]');
+                listItem.find('.dl-status-badge').text(badge).attr('class', 'dl-status-badge status-' + badge);
 
                 // Update job title in list if we got it
                 if (job.videoTitle) {
-                    $('.dl-job-item[data-id="' + currentJobId + '"] .dl-job-url').text(job.videoTitle);
+                    listItem.find('.dl-job-url').text(job.videoTitle);
+                }
+                if (job.errorMessage) {
+                    const existingError = listItem.find('.dl-job-error');
+                    if (existingError.length) {
+                        existingError.text(job.errorMessage);
+                    } else {
+                        $('<div class="dl-job-error"></div>').text(job.errorMessage).appendTo(listItem.find('.dl-job-info'));
+                    }
                 }
 
                 // Progress bar
@@ -557,10 +685,10 @@
                 }
 
                 // Finish polling
-                if (job.status === 'COMPLETED' || job.status === 'FAILED') {
+                if (isTerminalJob(job)) {
                     clearInterval(pollInterval);
-                    $('#progressFill').css('width', job.status === 'COMPLETED' ? '100%' : $('#progressFill').css('width'));
-                    if (job.status === 'COMPLETED') {
+                    $('#progressFill').css('width', badge === 'COMPLETED' ? '100%' : $('#progressFill').css('width'));
+                    if (badge === 'COMPLETED') {
                         $('#progressPct').text('100%');
                         $('#downloadSpeed').text('Hoàn thành ✅');
                         $('#etaValue').text('—');
@@ -644,13 +772,13 @@
                     showAlert('❌ ' + msg, 'danger');
                 },
                 complete: function() {
-                    $('#rtSaveBtn').prop('disabled', false).text('💾 Lưu vào Session');
+                    $('#rtSaveBtn').prop('disabled', false).text('Save Config');
                 }
             });
         }
 
         function clearRuntimeSettings() {
-            if (!confirm('Xoá toàn bộ runtime settings khỏi session?')) return;
+            if (!confirm('Clear all saved connection settings for this user?')) return;
             $.ajax({
                 url: '/downloader/api/runtime-settings',
                 type: 'DELETE',

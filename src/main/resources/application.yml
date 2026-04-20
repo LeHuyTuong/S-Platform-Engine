@@ -1,27 +1,23 @@
 spring:
   application:
     name: S-Platform
+  profiles:
+    default: local
   security:
     user:
       name: user
       password: user
-  datasource:
-    url: jdbc:h2:mem:platform;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: 
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
+    open-in-view: false
     show-sql: true
-    database-platform: org.hibernate.dialect.H2Dialect
     properties:
       hibernate:
         format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
   docker:
     compose:
       enabled: false
@@ -30,18 +26,37 @@ server:
   port: 8080
   servlet:
     session:
-      timeout: 30m          # RuntimeSettings tự xoá sau 30 phút không hoạt động
+      timeout: 30m
       cookie:
-        http-only: true     # Ngăn JavaScript đọc session cookie
-        same-site: strict   # Chống CSRF cross-site
+        http-only: true
+        same-site: strict
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
 
 app:
   downloader:
     output-dir: downloads
     yt-dlp-path: bin/yt-dlp.exe
     ffmpeg-path: bin/ffmpeg.exe
-  # Telegram Bot Token để rỗng — cấu hình tại runtime qua UI (không hardcode)
-  telegram:
-    bot-token: ""           # KHÔNG điền ở đây — dùng tính năng "Cài đặt kết nối" trên UI
-  # Base URL default — có thể override qua RuntimeSettings UI mà không cần restart
-  base-url: "http://localhost:8080"
+  security:
+    master-key: ${APP_MASTER_KEY:dev-master-key-change-me}
+  worker:
+    enabled: true
+    redis-enabled: false
+    worker-id: ${HOSTNAME:${COMPUTERNAME:local-worker}}
+    stream-key: download-jobs
+    consumer-group: platform-workers
+    concurrency: 4
+    provider-limits:
+      youtube: 2
+      tiktok: 1
+      instagram: 1
+      facebook: 1
+    resolve-timeout-seconds: 30
+    download-timeout-minutes: 30
+    post-process-timeout-minutes: 10
+    retry-backoff-seconds: 60,300,900

@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://platform_mysql:3306/platform_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:root}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:platform_redis}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+  h2:
+    console:
+      enabled: false
+
+app:
+  downloader:
+    output-dir: ${APP_DOWNLOADER_OUTPUT_DIR:/app/downloads}
+    yt-dlp-path: ${APP_DOWNLOADER_YT_DLP_PATH:/usr/local/bin/yt-dlp}
+    ffmpeg-path: ${APP_DOWNLOADER_FFMPEG_PATH:/usr/bin/ffmpeg}
+  worker:
+    redis-enabled: true

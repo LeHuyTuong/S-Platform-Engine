@@ -3,13 +3,13 @@ package com.example.platform.downloader.domain;
 import java.io.Serializable;
 
 /**
- * POJO lưu trữ các setting nhạy cảm tại runtime.
+ * Payload object cho API cấu hình kết nối người dùng.
  *
  * Quy tắc bảo mật:
- *   - KHÔNG đánh dấu @Entity — không bao giờ persist ra DB
- *   - KHÔNG log bất kỳ field nào ra console/file
- *   - KHÔNG trả raw value về FE — chỉ trả boolean hasValue
- *   - Implement Serializable để HttpSession có thể serialize nếu cần
+ *   - Không đánh dấu @Entity
+ *   - Không log raw secret
+ *   - Không trả raw value về FE; API status chỉ trả boolean hasValue
+ *   - Implement Serializable để tương thích payload serialization nếu cần
  */
 public class RuntimeSettings implements Serializable {
 

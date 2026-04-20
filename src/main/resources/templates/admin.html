@@ -123,6 +123,11 @@
                             <input type="number" id="retries" th:value="${settings.retries}" min="1" max="50">
                             <div class="hint">Số lần thử lại khi mất mạng/timeout.</div>
                         </div>
+                        <div class="form-group">
+                            <label>Max File Size (MB)</label>
+                            <input type="number" id="maxFileSizeMb" th:value="${settings.maxFileSizeMb}" min="0" max="102400">
+                            <div class="hint">0 = no limit. Enforced when provider can resolve file size.</div>
+                        </div>
                     </div>
                     <div style="margin-top: 20px; display: flex; gap: 10px;">
                         <button class="btn-primary-custom" onclick="saveSettings()">Lưu cấu hình</button>
@@ -261,7 +266,8 @@
                 sleepInterval: $('#sleepInterval').val(),
                 concurrentFragments: $('#concurrentFragments').val(),
                 sleepRequests: $('#sleepRequests').val(),
-                retries: $('#retries').val()
+                retries: $('#retries').val(),
+                maxFileSizeMb: $('#maxFileSizeMb').val()
             };
             $.ajax({
                 url: '/admin/api/settings',

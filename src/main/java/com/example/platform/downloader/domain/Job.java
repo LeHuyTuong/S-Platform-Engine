@@ -1,86 +1,143 @@
 package com.example.platform.downloader.domain;
 
+import com.example.platform.kernel.domain.BaseAuditEntity;
+import com.example.platform.modules.user.domain.User;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
-import jakarta.persistence.Id;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Transient;
-import jakarta.persistence.Column;
-
-import com.example.platform.modules.user.domain.User;
-
-import com.example.platform.kernel.domain.BaseAuditEntity;
-
 @Entity
 @Table(name = "jobs")
+/**
+ * Tác vụ tải cụ thể mà worker sẽ thực thi.
+ *
+ * Flow chính:
+ * - SourceRequest sinh ra một hoặc nhiều Job
+ * - Worker claim Job qua DB lease
+ * - yt-dlp chạy và cập nhật progress/log/metadata
+ * - Kết thúc ở COMPLETED, FAILED, RETRY_WAIT hoặc BLOCKED
+ */
 public class Job extends BaseAuditEntity {
+
+    // Mã Job ổn định, cũng được dùng làm tên thư mục lưu file.
     @Id
     private String id;
 
+    // Quan hệ sở hữu và quan hệ ngược về request cha.
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;
 
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_request_id")
+    private SourceRequest sourceRequest;
+
+    // Nhận diện nguồn và trạng thái vòng đời hiện tại.
     @Column(nullable = false, length = 1000)
     private String url;
 
     @Enumerated(EnumType.STRING)
+    @Column(length = 32)
     private JobStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(length = 32)
+    private JobState state;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 32)
+    private Platform platform;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 32)
+    private SourceType sourceType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 64)
+    private FailureCategory failureCategory;
+
+    // Buffer log tạm thời, được hydrate từ job_events khi trả status API.
     @Transient
     private List<String> logs;
 
+    // Tùy chọn đầu ra, khóa dedupe và các field hiển thị cho UI.
     private String outputFilename;
-
-    // Playlist tracking
     private String playlistTitle;
-    private String videoTitle;   // Tiêu đề video đơn (parse từ yt-dlp Destination log)
+    private String videoTitle;
     private Integer totalItems;
     private Integer currentItem;
-    // Download Preferences
-    private String downloadType; // "VIDEO" or "AUDIO"
-    private String quality; // "best", "1080", "720", "480"
-    private String format; // "mp4", "mkv", "mp3"
-    
-    // MMO Features
-    private String proxy; // HTTP(s) or SOCKS5 proxy
-    private String startTime; // Clip start time HH:MM:SS
-    private String endTime; // Clip end time HH:MM:SS
-    private boolean cleanMetadata; // Xoá metadata cho Re-up
-
-    // SEO & Thumbnail Features
-    private boolean writeThumbnail; // Tải thumbnail gốc
-    private String watermarkText;   // Chữ watermark sẽ đóng lên thumbnail
-    private String titleTemplate;   // Mẫu tiêu đề: dùng {title}, {channel}, {date}
-
-    // Real-time download speed monitoring
-    @Transient
-    private String downloadSpeed;   // Ví dụ: "2.50MiB/s"
-    @Transient
-    private String eta;             // Ví dụ: "00:23"
-    @Transient
-    private double progressPercent; // 0.0 - 100.0
-
+    private String downloadType;
+    private String quality;
+    private String format;
+    private String requestedVariant;
+    private String externalItemId;
+    private String proxy;
+    private String proxyRef;
+    private String startTime;
+    private String endTime;
+    private boolean cleanMetadata;
+    private boolean writeThumbnail;
+    private String watermarkText;
+    private String titleTemplate;
     private String errorMessage;
 
+    // Metadata lấy ra từ bước resolve hoặc từ output của yt-dlp.
+    private String authorName;
+
+    @Column(columnDefinition = "text")
+    private String captionText;
+
+    private LocalDateTime publishedAt;
+    private Long durationSeconds;
+    private String thumbnailUrl;
+    private String availability;
+
+    // Nhóm field phục vụ retry và cơ chế lease giữa nhiều worker.
+    private int attemptCount;
+    private int maxAttempts = 4;
+    private LocalDateTime nextAttemptAt;
+    private String leaseOwner;
+    private LocalDateTime leaseExpiresAt;
+    private LocalDateTime queuedAt;
+    private LocalDateTime startedAt;
+    private LocalDateTime finishedAt;
+    private String downloadPath;
+
+    // Progress runtime chỉ sống trong memory/response, không persist xuống DB.
+    @Transient
+    private String downloadSpeed;
+
+    @Transient
+    private String eta;
+
+    @Transient
+    private double progressPercent;
+
     public Job() {
-        // Default constructor for serialization
+        this.id = UUID.randomUUID().toString();
+        this.status = JobStatus.PENDING;
+        this.state = JobState.ACCEPTED;
+        this.logs = new ArrayList<>();
     }
 
     public Job(String url) {
-        this.id = UUID.randomUUID().toString();
+        this();
         this.url = url;
-        this.status = JobStatus.PENDING;
-        this.logs = new ArrayList<>();
     }
 
     public synchronized void addLog(String log) {
@@ -96,6 +153,22 @@ public class Job extends BaseAuditEntity {
 
     public void setId(String id) {
         this.id = id;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
+
+    public SourceRequest getSourceRequest() {
+        return sourceRequest;
+    }
+
+    public void setSourceRequest(SourceRequest sourceRequest) {
+        this.sourceRequest = sourceRequest;
     }
 
     public String getUrl() {
@@ -114,14 +187,48 @@ public class Job extends BaseAuditEntity {
         this.status = status;
     }
 
+    public JobState getState() {
+        return state;
+    }
+
+    public void setState(JobState state) {
+        this.state = state;
+    }
+
+    public Platform getPlatform() {
+        return platform;
+    }
+
+    public void setPlatform(Platform platform) {
+        this.platform = platform;
+    }
+
+    public SourceType getSourceType() {
+        return sourceType;
+    }
+
+    public void setSourceType(SourceType sourceType) {
+        this.sourceType = sourceType;
+    }
+
+    public FailureCategory getFailureCategory() {
+        return failureCategory;
+    }
+
+    public void setFailureCategory(FailureCategory failureCategory) {
+        this.failureCategory = failureCategory;
+    }
+
     public List<String> getLogs() {
+        if (logs == null) {
+            logs = new ArrayList<>();
+        }
         return logs;
     }
 
     public void setLogs(List<String> logs) {
         this.logs = logs;
     }
-
 
     public String getOutputFilename() {
         return outputFilename;
@@ -163,14 +270,6 @@ public class Job extends BaseAuditEntity {
         this.currentItem = currentItem;
     }
 
-    public String getErrorMessage() {
-        return errorMessage;
-    }
-
-    public void setErrorMessage(String errorMessage) {
-        this.errorMessage = errorMessage;
-    }
-
     public String getDownloadType() {
         return downloadType;
     }
@@ -195,12 +294,36 @@ public class Job extends BaseAuditEntity {
         this.format = format;
     }
 
+    public String getRequestedVariant() {
+        return requestedVariant;
+    }
+
+    public void setRequestedVariant(String requestedVariant) {
+        this.requestedVariant = requestedVariant;
+    }
+
+    public String getExternalItemId() {
+        return externalItemId;
+    }
+
+    public void setExternalItemId(String externalItemId) {
+        this.externalItemId = externalItemId;
+    }
+
     public String getProxy() {
         return proxy;
     }
 
     public void setProxy(String proxy) {
         this.proxy = proxy;
+    }
+
+    public String getProxyRef() {
+        return proxyRef;
+    }
+
+    public void setProxyRef(String proxyRef) {
+        this.proxyRef = proxyRef;
     }
 
     public String getStartTime() {
@@ -219,14 +342,6 @@ public class Job extends BaseAuditEntity {
         this.endTime = endTime;
     }
 
-    public User getUser() {
-        return user;
-    }
-
-    public void setUser(User user) {
-        this.user = user;
-    }
-
     public boolean isCleanMetadata() {
         return cleanMetadata;
     }
@@ -235,25 +350,186 @@ public class Job extends BaseAuditEntity {
         this.cleanMetadata = cleanMetadata;
     }
 
-    public boolean isWriteThumbnail() { return writeThumbnail; }
-    public void setWriteThumbnail(boolean writeThumbnail) { this.writeThumbnail = writeThumbnail; }
+    public boolean isWriteThumbnail() {
+        return writeThumbnail;
+    }
 
-    public String getWatermarkText() { return watermarkText; }
-    public void setWatermarkText(String watermarkText) { this.watermarkText = watermarkText; }
+    public void setWriteThumbnail(boolean writeThumbnail) {
+        this.writeThumbnail = writeThumbnail;
+    }
 
-    public String getTitleTemplate() { return titleTemplate; }
-    public void setTitleTemplate(String titleTemplate) { this.titleTemplate = titleTemplate; }
+    public String getWatermarkText() {
+        return watermarkText;
+    }
 
-    public String getDownloadSpeed() { return downloadSpeed; }
-    public void setDownloadSpeed(String downloadSpeed) { this.downloadSpeed = downloadSpeed; }
+    public void setWatermarkText(String watermarkText) {
+        this.watermarkText = watermarkText;
+    }
 
-    public String getEta() { return eta; }
-    public void setEta(String eta) { this.eta = eta; }
+    public String getTitleTemplate() {
+        return titleTemplate;
+    }
 
-    public double getProgressPercent() { return progressPercent; }
-    public void setProgressPercent(double progressPercent) { this.progressPercent = progressPercent; }
+    public void setTitleTemplate(String titleTemplate) {
+        this.titleTemplate = titleTemplate;
+    }
+
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+
+    public void setErrorMessage(String errorMessage) {
+        this.errorMessage = errorMessage;
+    }
+
+    public String getAuthorName() {
+        return authorName;
+    }
+
+    public void setAuthorName(String authorName) {
+        this.authorName = authorName;
+    }
+
+    public String getCaptionText() {
+        return captionText;
+    }
+
+    public void setCaptionText(String captionText) {
+        this.captionText = captionText;
+    }
+
+    public LocalDateTime getPublishedAt() {
+        return publishedAt;
+    }
+
+    public void setPublishedAt(LocalDateTime publishedAt) {
+        this.publishedAt = publishedAt;
+    }
+
+    public Long getDurationSeconds() {
+        return durationSeconds;
+    }
+
+    public void setDurationSeconds(Long durationSeconds) {
+        this.durationSeconds = durationSeconds;
+    }
+
+    public String getThumbnailUrl() {
+        return thumbnailUrl;
+    }
+
+    public void setThumbnailUrl(String thumbnailUrl) {
+        this.thumbnailUrl = thumbnailUrl;
+    }
+
+    public String getAvailability() {
+        return availability;
+    }
+
+    public void setAvailability(String availability) {
+        this.availability = availability;
+    }
+
+    public int getAttemptCount() {
+        return attemptCount;
+    }
+
+    public void setAttemptCount(int attemptCount) {
+        this.attemptCount = attemptCount;
+    }
+
+    public int getMaxAttempts() {
+        return maxAttempts;
+    }
+
+    public void setMaxAttempts(int maxAttempts) {
+        this.maxAttempts = maxAttempts;
+    }
+
+    public LocalDateTime getNextAttemptAt() {
+        return nextAttemptAt;
+    }
+
+    public void setNextAttemptAt(LocalDateTime nextAttemptAt) {
+        this.nextAttemptAt = nextAttemptAt;
+    }
+
+    public String getLeaseOwner() {
+        return leaseOwner;
+    }
+
+    public void setLeaseOwner(String leaseOwner) {
+        this.leaseOwner = leaseOwner;
+    }
+
+    public LocalDateTime getLeaseExpiresAt() {
+        return leaseExpiresAt;
+    }
+
+    public void setLeaseExpiresAt(LocalDateTime leaseExpiresAt) {
+        this.leaseExpiresAt = leaseExpiresAt;
+    }
+
+    public LocalDateTime getQueuedAt() {
+        return queuedAt;
+    }
+
+    public void setQueuedAt(LocalDateTime queuedAt) {
+        this.queuedAt = queuedAt;
+    }
+
+    public LocalDateTime getStartedAt() {
+        return startedAt;
+    }
+
+    public void setStartedAt(LocalDateTime startedAt) {
+        this.startedAt = startedAt;
+    }
+
+    public LocalDateTime getFinishedAt() {
+        return finishedAt;
+    }
+
+    public void setFinishedAt(LocalDateTime finishedAt) {
+        this.finishedAt = finishedAt;
+    }
+
+    public String getDownloadPath() {
+        return downloadPath;
+    }
+
+    public void setDownloadPath(String downloadPath) {
+        this.downloadPath = downloadPath;
+    }
+
+    public String getDownloadSpeed() {
+        return downloadSpeed;
+    }
+
+    public void setDownloadSpeed(String downloadSpeed) {
+        this.downloadSpeed = downloadSpeed;
+    }
+
+    public String getEta() {
+        return eta;
+    }
+
+    public void setEta(String eta) {
+        this.eta = eta;
+    }
+
+    public double getProgressPercent() {
+        return progressPercent;
+    }
+
+    public void setProgressPercent(double progressPercent) {
+        this.progressPercent = progressPercent;
+    }
 
     public enum JobStatus {
-        PENDING, RUNNING, COMPLETED, FAILED
+        PENDING,
+        RUNNING,
+        COMPLETED,
+        FAILED
     }
 }

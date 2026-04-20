@@ -1,54 +1,81 @@
 package com.example.platform.downloader.ui;
 
-import com.example.platform.downloader.domain.Job;
-import com.example.platform.downloader.infrastructure.JobRepository;
-import com.example.platform.downloader.application.JobManager;
+import com.example.platform.downloader.application.DownloadAccessPolicyService;
+import com.example.platform.downloader.application.DownloadArtifactService;
+import com.example.platform.downloader.application.DownloaderDtoMapper;
 import com.example.platform.downloader.application.DownloaderService;
+import com.example.platform.downloader.application.JobManager;
+import com.example.platform.downloader.application.SourceRequestService;
+import com.example.platform.downloader.domain.Job;
+import com.example.platform.downloader.domain.Platform;
+import com.example.platform.downloader.domain.SourceRequest;
+import com.example.platform.downloader.infrastructure.JobRepository;
+import com.example.platform.downloader.infrastructure.SourceRequestRepository;
+import com.example.platform.downloader.ui.dto.JobFileResponse;
+import com.example.platform.downloader.ui.dto.JobStatusResponse;
+import com.example.platform.downloader.ui.dto.SourceRequestResponse;
+import com.example.platform.downloader.ui.dto.SubmitSourceRequest;
 import com.example.platform.kernel.exception.BusinessException;
 import com.example.platform.kernel.exception.ResourceNotFoundException;
 import com.example.platform.kernel.ui.RestResponse;
-
+import com.example.platform.modules.user.domain.User;
+import com.example.platform.modules.user.infrastructure.UserRepository;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.security.Principal;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-
-import com.example.platform.modules.user.domain.User;
-import com.example.platform.modules.user.infrastructure.UserRepository;
 
 @Controller
 @RequestMapping("/downloader")
 public class DownloadController {
 
     private final DownloaderService downloaderService;
+    private final DownloadArtifactService downloadArtifactService;
+    private final DownloadAccessPolicyService accessPolicyService;
     private final JobManager jobManager;
     private final JobRepository jobRepository;
+    private final SourceRequestRepository sourceRequestRepository;
+    private final SourceRequestService sourceRequestService;
+    private final DownloaderDtoMapper dtoMapper;
     private final UserRepository userRepository;
 
     public DownloadController(DownloaderService downloaderService,
+                              DownloadArtifactService downloadArtifactService,
+                              DownloadAccessPolicyService accessPolicyService,
                               JobManager jobManager,
                               JobRepository jobRepository,
+                              SourceRequestRepository sourceRequestRepository,
+                              SourceRequestService sourceRequestService,
+                              DownloaderDtoMapper dtoMapper,
                               UserRepository userRepository) {
         this.downloaderService = downloaderService;
+        this.downloadArtifactService = downloadArtifactService;
+        this.accessPolicyService = accessPolicyService;
         this.jobManager = jobManager;
         this.jobRepository = jobRepository;
+        this.sourceRequestRepository = sourceRequestRepository;
+        this.sourceRequestService = sourceRequestService;
+        this.dtoMapper = dtoMapper;
         this.userRepository = userRepository;
     }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Pages
-    // ─────────────────────────────────────────────────────────────────────────
 
     @GetMapping
     public String index(Model model, Principal principal) {
@@ -68,204 +95,201 @@ public class DownloadController {
         return "downloader";
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Download submission
-    // ─────────────────────────────────────────────────────────────────────────
+    @PostMapping("/api/source-requests")
+    @ResponseBody
+    public RestResponse<SourceRequestResponse> submitSourceRequest(@RequestBody SubmitSourceRequest request,
+                                                                   Principal principal) {
+        User user = accessPolicyService.currentUser(principal);
+
+        SourceRequestService.SubmissionResult result;
+        try {
+            synchronized (jobManager.getUserLock(user.getId().toString())) {
+                accessPolicyService.enforceSubmissionPolicy(user, request);
+                result = sourceRequestService.submit(request, user);
+            }
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(e.getMessage());
+        }
+        List<JobStatusResponse> jobs = new ArrayList<>();
+        if (result.primaryJob() != null) {
+            jobs.add(toJobResponse(result.primaryJob()));
+        }
+        return RestResponse.ok(dtoMapper.toSourceRequest(result.sourceRequest(), jobs), "Source request accepted");
+    }
 
     @PostMapping("/api/submit")
     @ResponseBody
-    public RestResponse<Job> submit(@RequestBody Map<String, String> payload,
-                                     Principal principal, HttpSession session) {
-        if (principal == null) {
-            throw new BusinessException("Bạn chưa đăng nhập");
+    public RestResponse<JobStatusResponse> submitCompatibility(@RequestBody SubmitSourceRequest request,
+                                                               Principal principal) {
+        User user = accessPolicyService.currentUser(principal);
+
+        SourceRequestService.SubmissionResult result;
+        try {
+            synchronized (jobManager.getUserLock(user.getId().toString())) {
+                accessPolicyService.enforceSubmissionPolicy(user, request);
+                result = sourceRequestService.submit(request, user);
+            }
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(e.getMessage());
         }
-        User user = userRepository.findByEmail(principal.getName())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        // Bug 4 Fix: serialize quota check + submit per-user để tránh concurrent bypass
-        synchronized (jobManager.getUserLock(user.getId().toString())) {
-
-            LocalDateTime startOfDay = LocalDateTime.now().truncatedTo(ChronoUnit.DAYS);
-            int jobsToday = jobRepository.countByUserAndCreatedAtAfter(user, startOfDay);
-
-            int maxJobs = resolveQuota(user);
-            if (jobsToday >= maxJobs) {
-                throw new BusinessException("Đã vượt hạn mức! Bạn chỉ có thể tải " + maxJobs + " tệp mỗi ngày.");
-            }
-
-            String url = payload.get("url");
-            if (url == null || url.isBlank()) {
-                throw new BusinessException("Vui lòng nhập URL");
-            }
-
-            // Block proxy usage for normal users
-            if ("USER".equals(user.getRole().name())
-                    && payload.containsKey("proxy")
-                    && !payload.get("proxy").isBlank()) {
-                throw new org.springframework.security.access.AccessDeniedException("Chỉ tài khoản PUBLISHER mới có thể dùng Proxy riêng.");
-            }
-
-            Job job = downloaderService.submitDownload(payload, user, session);
-            return RestResponse.ok(job, "Job submitted successfully");
+        JobStatusResponse response;
+        if (result.primaryJob() != null) {
+            response = toJobResponse(result.primaryJob());
+        } else {
+            response = new JobStatusResponse();
+            response.setId(result.sourceRequest().getId());
+            response.setSourceRequestId(result.sourceRequest().getId());
+            response.setStatus("PENDING");
+            response.setState(result.sourceRequest().getState().name());
+            response.setPlatform(result.sourceRequest().getPlatform().name());
+            response.setSourceType(result.sourceRequest().getSourceType().name());
+            response.setUrl(result.sourceRequest().getSourceUrl());
         }
+        return RestResponse.ok(response, "Job submitted successfully");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Job status
-    // ─────────────────────────────────────────────────────────────────────────
-
-    @GetMapping("/api/status/{id}")
+    @GetMapping("/api/source-requests/{id}")
     @ResponseBody
-    public RestResponse<Job> getStatus(@PathVariable String id, Principal principal) {
+    public RestResponse<SourceRequestResponse> getSourceRequest(@PathVariable String id, Principal principal) {
+        User user = accessPolicyService.currentUser(principal);
+        SourceRequest sourceRequest = sourceRequestRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Source request not found"));
+        accessPolicyService.ensureOwnerOrAdmin(sourceRequest.getUser(), user);
+
+        List<JobStatusResponse> jobs = jobRepository.findBySourceRequestIdOrderByCreatedAtAsc(id).stream()
+                .map(this::toJobResponse)
+                .toList();
+        return RestResponse.ok(dtoMapper.toSourceRequest(sourceRequest, jobs));
+    }
+
+    @GetMapping("/api/jobs/{id}")
+    @ResponseBody
+    public RestResponse<JobStatusResponse> getJob(@PathVariable String id, Principal principal) {
         Job job = jobManager.getJob(id);
         if (job == null) {
             throw new ResourceNotFoundException("Job not found: " + id);
         }
-        // Chỉ cho phép xem job của chính mình (hoặc ADMIN)
-        if (principal != null) {
-            User user = userRepository.findByEmail(principal.getName()).orElse(null);
-            if (user != null && !isOwnerOrAdmin(job, user)) {
-                throw new org.springframework.security.access.AccessDeniedException("Không có quyền truy cập");
-            }
-        }
-        return RestResponse.ok(job);
+        User user = accessPolicyService.currentUser(principal);
+        accessPolicyService.ensureOwnerOrAdmin(job.getUser(), user);
+        return RestResponse.ok(toJobResponse(job));
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // File serving (Feature 1)
-    // ─────────────────────────────────────────────────────────────────────────
+    @GetMapping("/api/status/{id}")
+    @ResponseBody
+    public RestResponse<JobStatusResponse> getStatusCompatibility(@PathVariable String id, Principal principal) {
+        return getJob(id, principal);
+    }
 
-    /**
-     * Liệt kê các file đã tải về trong một job.
-     * Chỉ owner hoặc ADMIN mới được xem.
-     */
+    @GetMapping("/api/jobs/{jobId}/files")
+    @ResponseBody
+    public RestResponse<List<JobFileResponse>> listFilesByJob(@PathVariable String jobId, Principal principal) {
+        return listFilesCompatibility(jobId, principal);
+    }
+
     @GetMapping("/api/files/{jobId}")
     @ResponseBody
-    public RestResponse<List<Map<String, String>>> listFiles(@PathVariable String jobId, Principal principal) {
+    public RestResponse<List<JobFileResponse>> listFilesCompatibility(@PathVariable String jobId, Principal principal) {
         Job job = jobManager.getJob(jobId);
-        if (job == null) throw new ResourceNotFoundException("Job not found");
-
-        if (principal != null) {
-            User user = userRepository.findByEmail(principal.getName()).orElse(null);
-            if (user == null || !isOwnerOrAdmin(job, user)) {
-                throw new org.springframework.security.access.AccessDeniedException("Không có quyền truy cập");
-            }
-        } else {
-            throw new BusinessException("Bạn chưa đăng nhập");
+        if (job == null) {
+            throw new ResourceNotFoundException("Job not found");
         }
+        User user = accessPolicyService.currentUser(principal);
+        accessPolicyService.ensureOwnerOrAdmin(job.getUser(), user);
 
-        List<Map<String, String>> files = downloaderService.listJobFiles(jobId);
+        List<JobFileResponse> files = downloadArtifactService.listJobFiles(jobId).stream()
+                .map(file -> dtoMapper.toJobFile(
+                        file.get("name"),
+                        file.get("path"),
+                        file.get("contentType"),
+                        Long.parseLong(file.getOrDefault("size", "0"))
+                ))
+                .toList();
         return RestResponse.ok(files);
     }
 
-    /**
-     * Serve file về client dưới dạng attachment download.
-     * Chỉ owner hoặc ADMIN mới được tải.
-     * URL pattern: GET /downloader/files/{jobId}/{filename}
-     */
     @GetMapping("/files/{jobId}/{filename}")
-    public ResponseEntity<Resource> downloadFile(
-            @PathVariable String jobId,
-            @PathVariable String filename,
-            Principal principal) throws IOException {
-
+    public ResponseEntity<Resource> downloadFile(@PathVariable String jobId,
+                                                 @PathVariable String filename,
+                                                 Principal principal) throws IOException {
         Job job = jobManager.getJob(jobId);
-        if (job == null) return ResponseEntity.notFound().build();
-
-        if (principal != null) {
-            User user = userRepository.findByEmail(principal.getName()).orElse(null);
-            if (user == null || !isOwnerOrAdmin(job, user)) {
-                return ResponseEntity.status(403).build();
-            }
-        } else {
-            return ResponseEntity.status(401).build();
+        if (job == null) {
+            return ResponseEntity.notFound().build();
         }
+        User user = accessPolicyService.currentUser(principal);
+        accessPolicyService.ensureOwnerOrAdmin(job.getUser(), user);
 
-        ResponseEntity<Resource> response = downloaderService.serveFile(jobId, filename);
+        ResponseEntity<Resource> response = downloadArtifactService.serveFile(jobId, filename);
         return response != null ? response : ResponseEntity.notFound().build();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Cookie management (Feature 2: per-user isolation)
-    // ─────────────────────────────────────────────────────────────────────────
+    @PostMapping("/api/provider-credentials/{platform}/cookies")
+    @ResponseBody
+    public RestResponse<Void> uploadProviderCookie(@PathVariable String platform,
+                                                   @RequestParam("file") MultipartFile file,
+                                                   Principal principal) {
+        User user = accessPolicyService.currentUser(principal);
+        try {
+            downloaderService.saveProviderCookie(file, user, parsePlatform(platform));
+            return RestResponse.ok(null, "Táº£i lÃªn cookie thÃ nh cÃ´ng");
+        } catch (Exception e) {
+            throw new BusinessException("Lá»—i upload: " + e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/api/provider-credentials/{platform}/cookies")
+    @ResponseBody
+    public RestResponse<Void> deleteProviderCookie(@PathVariable String platform, Principal principal) {
+        User user = accessPolicyService.currentUser(principal);
+        downloaderService.deleteProviderCookie(user, parsePlatform(platform));
+        return RestResponse.ok(null, "ÄÃ£ xoÃ¡ file cookie");
+    }
+
+    @GetMapping("/api/provider-credentials/status")
+    @ResponseBody
+    public RestResponse<Map<String, Boolean>> getProviderCredentialStatus(Principal principal) {
+        User user = accessPolicyService.currentUser(principal);
+        Map<String, Boolean> result = new LinkedHashMap<>();
+        for (Platform platform : Platform.values()) {
+            result.put(platform.name(), downloaderService.hasProviderCookie(user, platform));
+        }
+        return RestResponse.ok(result);
+    }
 
     @PostMapping("/api/upload-cookies")
     @ResponseBody
-    public RestResponse<Void> uploadCookies(
-            @RequestParam("file") MultipartFile file, Principal principal) {
-        if (principal == null) {
-            throw new BusinessException("Bạn chưa đăng nhập");
-        }
-        User user = userRepository.findByEmail(principal.getName())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        try {
-            downloaderService.saveCookieFile(file, user);
-            return RestResponse.ok(null, "Tải lên cookie thành công");
-        } catch (Exception e) {
-            throw new BusinessException("Lỗi upload: " + e.getMessage());
-        }
+    public RestResponse<Void> uploadCookiesCompatibility(@RequestParam("file") MultipartFile file, Principal principal) {
+        return uploadProviderCookie("YOUTUBE", file, principal);
     }
 
     @DeleteMapping("/api/cookies")
     @ResponseBody
-    public RestResponse<Void> deleteCookies(Principal principal) {
-        if (principal == null) {
-            throw new BusinessException("Bạn chưa đăng nhập");
-        }
-        User user = userRepository.findByEmail(principal.getName())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        try {
-            downloaderService.deleteCookieFile(user);
-            return RestResponse.ok(null, "Đã xoá file cookie");
-        } catch (Exception e) {
-            throw new BusinessException("Lỗi khi xóa: " + e.getMessage());
-        }
+    public RestResponse<Void> deleteCookiesCompatibility(Principal principal) {
+        return deleteProviderCookie("YOUTUBE", principal);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Telegram Chat ID management (Feature 3)
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * User tự cập nhật Telegram Chat ID của họ.
-     * Lấy chat_id: nhắn /start cho @userinfobot trên Telegram.
-     *
-     * POST /downloader/api/telegram-chatid
-     * Body: { "chatId": "123456789" }
-     */
     @PostMapping("/api/telegram-chatid")
     @ResponseBody
-    public RestResponse<Void> updateTelegramChatId(
-            @RequestBody Map<String, String> body, Principal principal) {
-        if (principal == null) {
-            throw new BusinessException("Bạn chưa đăng nhập");
-        }
-        User user = userRepository.findByEmail(principal.getName())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
+    public RestResponse<Void> updateTelegramChatId(@RequestBody Map<String, String> body, Principal principal) {
+        User user = accessPolicyService.currentUser(principal);
         String chatId = body.getOrDefault("chatId", "").trim();
-        // Cho phép xóa chat_id bằng cách gửi chuỗi rỗng
         user.setTelegramChatId(chatId.isEmpty() ? null : chatId);
         userRepository.save(user);
-
-        String msg = chatId.isEmpty() ? "Đã xóa Telegram Chat ID" : "Đã lưu Telegram Chat ID: " + chatId;
-        return RestResponse.ok(null, msg);
+        return RestResponse.ok(null, chatId.isEmpty()
+                ? "ÄÃ£ xoÃ¡ Telegram Chat ID"
+                : "ÄÃ£ lÆ°u Telegram Chat ID");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Helpers
-    // ─────────────────────────────────────────────────────────────────────────
-
-    private int resolveQuota(User user) {
-        return switch (user.getRole()) {
-            case ADMIN -> 999;
-            case PUBLISHER -> 20;
-            default -> 3;
-        };
+    private JobStatusResponse toJobResponse(Job job) {
+        Job hydrated = jobManager.getJob(job.getId());
+        if (hydrated != null) {
+            job.setLogs(hydrated.getLogs());
+        } else {
+            job.setLogs(List.of());
+        }
+        return dtoMapper.toJobStatus(job, job.getLogs());
     }
 
-    private boolean isOwnerOrAdmin(Job job, User user) {
-        if ("ADMIN".equals(user.getRole().name())) return true;
-        return job.getUser() != null && job.getUser().getId().equals(user.getId());
+    private Platform parsePlatform(String value) {
+        return Platform.valueOf(value.toUpperCase(Locale.ROOT));
     }
 }
