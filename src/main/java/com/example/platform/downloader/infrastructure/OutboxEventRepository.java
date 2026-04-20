@@ -1,7 +1,7 @@
 package com.example.platform.downloader.infrastructure;
 
-import com.example.platform.downloader.domain.OutboxEvent;
-import com.example.platform.downloader.domain.OutboxStatus;
+import com.example.platform.downloader.domain.entity.OutboxEvent;
+import com.example.platform.downloader.domain.enums.OutboxStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

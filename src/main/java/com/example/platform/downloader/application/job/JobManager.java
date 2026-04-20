@@ -1,6 +1,6 @@
-package com.example.platform.downloader.application;
+package com.example.platform.downloader.application.job;
 
-import com.example.platform.downloader.domain.Job;
+import com.example.platform.downloader.domain.entity.Job;
 import com.example.platform.downloader.infrastructure.JobRepository;
 import org.springframework.stereotype.Service;
 
@@ -38,3 +38,4 @@ public class JobManager {
                 .collect(Collectors.toList());
     }
 }
+

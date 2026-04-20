@@ -1,10 +1,17 @@
-package com.example.platform.downloader.application;
+package com.example.platform.downloader.application.job;
 
-import com.example.platform.downloader.domain.DownloadAttempt;
-import com.example.platform.downloader.domain.FailureCategory;
-import com.example.platform.downloader.domain.Job;
-import com.example.platform.downloader.domain.JobState;
-import com.example.platform.downloader.domain.Platform;
+import com.example.platform.downloader.application.DownloadArtifactService;
+import com.example.platform.downloader.application.DownloaderMetricsService;
+import com.example.platform.downloader.application.DownloaderService;
+import com.example.platform.downloader.application.SourceRequestService;
+import com.example.platform.downloader.application.TelegramNotificationService;
+import com.example.platform.downloader.application.outbox.OutboxService;
+import com.example.platform.downloader.domain.entity.DownloadAttempt;
+import com.example.platform.downloader.domain.entity.Job;
+import com.example.platform.downloader.domain.enums.FailureCategory;
+import com.example.platform.downloader.domain.enums.JobState;
+import com.example.platform.downloader.domain.enums.Platform;
+import com.example.platform.downloader.exception.ClassifiedDownloadException;
 import com.example.platform.downloader.infrastructure.DownloadAttemptRepository;
 import com.example.platform.downloader.infrastructure.JobRepository;
 import com.example.platform.downloader.infrastructure.WorkerProperties;
@@ -25,8 +32,8 @@ import java.util.concurrent.Semaphore;
  *
  * Nó dựa vào:
  * - outbox event để nhận việc
- * - DB lease trên Job để tránh chạy trùng
- * - metadata retry trên Job/DownloadAttempt để tự phục hồi sau lỗi tạm thời
+ * - DB lease trên job để tránh chạy trùng
+ * - metadata retry trên `Job` và `DownloadAttempt` để tự phục hồi sau lỗi tạm thời
  */
 public class DownloadWorkerService {
 
@@ -155,7 +162,11 @@ public class DownloadWorkerService {
             job.setLeaseExpiresAt(null);
             jobRepository.save(job);
             downloaderMetricsService.recordJobSuccess(job, jobDuration(job));
-            telegramNotificationService.notifyJobCompleted(job, resolveNotificationUser(job), downloadArtifactService.listJobFiles(job.getId()));
+            telegramNotificationService.notifyJobCompleted(
+                    job,
+                    resolveNotificationUser(job),
+                    downloadArtifactService.listJobFiles(job.getId())
+            );
         } catch (ClassifiedDownloadException e) {
             attempt.setFailureCategory(e.getFailureCategory());
             attempt.setErrorMessage(e.getMessage());
@@ -169,13 +180,16 @@ public class DownloadWorkerService {
             job.setLeaseExpiresAt(null);
 
             if (isRetryable(e.getFailureCategory()) && attempt.getAttemptNumber() < job.getMaxAttempts()) {
-                // Lỗi có thể retry sẽ giữ nguyên Job hiện tại và lên lịch requeue có delay.
+                // Lỗi có thể retry sẽ giữ nguyên job hiện tại và lên lịch requeue có delay.
                 downloadArtifactService.cleanupFailedArtifacts(job);
                 int delaySeconds = retryDelay(attempt.getAttemptNumber());
                 job.setState(JobState.RETRY_WAIT);
                 job.setStatus(Job.JobStatus.PENDING);
                 job.setNextAttemptAt(LocalDateTime.now().plusSeconds(delaySeconds));
-                jobEventService.appendWarn(job, "[WORKER] Retry scheduled in " + delaySeconds + "s due to " + e.getFailureCategory());
+                jobEventService.appendWarn(
+                        job,
+                        "[WORKER] Retry scheduled in " + delaySeconds + "s due to " + e.getFailureCategory()
+                );
                 jobRepository.save(job);
                 downloaderMetricsService.recordRetry(job, e.getFailureCategory());
                 outboxService.create("job", job.getId(), "DOWNLOAD_JOB_QUEUED", Map.of("jobId", job.getId()), delaySeconds);
@@ -210,7 +224,7 @@ public class DownloadWorkerService {
     }
 
     public void recoverExpiredRunningJobs() {
-        // Safety net khi worker chết giữa chừng: job RUNNING hết lease sẽ quay lại luồng retry.
+        // Safety net khi worker chết giữa chừng: job `RUNNING` hết lease sẽ quay lại luồng retry.
         for (Job job : jobRepository.findExpiredRunningJobs(JobState.RUNNING, LocalDateTime.now())) {
             job.setLeaseOwner(null);
             job.setLeaseExpiresAt(null);

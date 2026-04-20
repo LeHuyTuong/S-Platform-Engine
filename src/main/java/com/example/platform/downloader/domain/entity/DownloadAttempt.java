@@ -1,5 +1,6 @@
-package com.example.platform.downloader.domain;
+package com.example.platform.downloader.domain.entity;
 
+import com.example.platform.downloader.domain.enums.FailureCategory;
 import com.example.platform.kernel.domain.BaseAuditEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -18,10 +19,10 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "download_attempts")
 /**
- * Lịch sử chạy từng lần của một Job.
+ * Lịch sử từng lần chạy của một job.
  *
- * Mỗi lần worker claim và chạy lại job sẽ tạo một DownloadAttempt mới để có thể
- * theo dõi retry độc lập với trạng thái cuối cùng đang nằm trên bảng jobs.
+ * Mỗi lần worker claim và thực thi lại job sẽ tạo một bản ghi mới để theo dõi
+ * retry độc lập với trạng thái cuối cùng lưu trong bảng `jobs`.
  */
 public class DownloadAttempt extends BaseAuditEntity {
 
@@ -29,7 +30,7 @@ public class DownloadAttempt extends BaseAuditEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Job cha mà lần chạy này thuộc về.
+    // Job cha của lần chạy này.
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "job_id", nullable = false)
     private Job job;
@@ -47,7 +48,7 @@ public class DownloadAttempt extends BaseAuditEntity {
     @Column(nullable = false)
     private boolean success;
 
-    // Thông tin tiến trình/lỗi bổ sung nếu lần chạy không thành công.
+    // Thông tin lỗi hoặc tiến trình bổ sung nếu lần chạy không thành công.
     private Integer exitCode;
 
     @Enumerated(EnumType.STRING)

@@ -1,10 +1,10 @@
 package com.example.platform.downloader.application.provider;
 
-import com.example.platform.downloader.domain.FailureCategory;
-import com.example.platform.downloader.domain.Job;
-import com.example.platform.downloader.domain.Platform;
-import com.example.platform.downloader.domain.SourceRequest;
-import com.example.platform.downloader.domain.SourceType;
+import com.example.platform.downloader.domain.enums.FailureCategory;
+import com.example.platform.downloader.domain.entity.Job;
+import com.example.platform.downloader.domain.enums.Platform;
+import com.example.platform.downloader.domain.entity.SourceRequest;
+import com.example.platform.downloader.domain.enums.SourceType;
 import com.example.platform.downloader.infrastructure.AppSettings;
 import com.example.platform.downloader.infrastructure.WorkerProperties;
 import com.fasterxml.jackson.databind.JsonNode;

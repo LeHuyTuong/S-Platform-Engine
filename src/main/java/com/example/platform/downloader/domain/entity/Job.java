@@ -1,5 +1,9 @@
-package com.example.platform.downloader.domain;
+package com.example.platform.downloader.domain.entity;
 
+import com.example.platform.downloader.domain.enums.FailureCategory;
+import com.example.platform.downloader.domain.enums.JobState;
+import com.example.platform.downloader.domain.enums.Platform;
+import com.example.platform.downloader.domain.enums.SourceType;
 import com.example.platform.kernel.domain.BaseAuditEntity;
 import com.example.platform.modules.user.domain.User;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -25,14 +29,14 @@ import java.util.UUID;
  * Tác vụ tải cụ thể mà worker sẽ thực thi.
  *
  * Flow chính:
- * - SourceRequest sinh ra một hoặc nhiều Job
- * - Worker claim Job qua DB lease
- * - yt-dlp chạy và cập nhật progress/log/metadata
- * - Kết thúc ở COMPLETED, FAILED, RETRY_WAIT hoặc BLOCKED
+ * - `SourceRequest` sinh ra một hoặc nhiều `Job`
+ * - worker claim `Job` qua DB lease
+ * - `yt-dlp` chạy và cập nhật progress, log, metadata
+ * - kết thúc ở `COMPLETED`, `FAILED`, `RETRY_WAIT` hoặc `BLOCKED`
  */
 public class Job extends BaseAuditEntity {
 
-    // Mã Job ổn định, cũng được dùng làm tên thư mục lưu file.
+    // Mã job ổn định, cũng được dùng làm tên thư mục lưu file.
     @Id
     private String id;
 
@@ -71,7 +75,7 @@ public class Job extends BaseAuditEntity {
     @Column(length = 64)
     private FailureCategory failureCategory;
 
-    // Buffer log tạm thời, được hydrate từ job_events khi trả status API.
+    // Buffer log tạm thời, được hydrate từ `job_events` khi trả status API.
     @Transient
     private List<String> logs;
 
@@ -96,7 +100,7 @@ public class Job extends BaseAuditEntity {
     private String titleTemplate;
     private String errorMessage;
 
-    // Metadata lấy ra từ bước resolve hoặc từ output của yt-dlp.
+    // Metadata lấy ra từ bước resolve hoặc từ output của `yt-dlp`.
     private String authorName;
 
     @Column(columnDefinition = "text")
@@ -118,7 +122,7 @@ public class Job extends BaseAuditEntity {
     private LocalDateTime finishedAt;
     private String downloadPath;
 
-    // Progress runtime chỉ sống trong memory/response, không persist xuống DB.
+    // Progress runtime chỉ sống trong memory hoặc response, không persist xuống DB.
     @Transient
     private String downloadSpeed;
 

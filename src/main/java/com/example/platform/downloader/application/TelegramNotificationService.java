@@ -1,6 +1,6 @@
 package com.example.platform.downloader.application;
 
-import com.example.platform.downloader.domain.Job;
+import com.example.platform.downloader.domain.entity.Job;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.platform.modules.user.domain.User;
 import org.slf4j.Logger;

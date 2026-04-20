@@ -1,6 +1,6 @@
 package com.example.platform.downloader.infrastructure;
 
-import com.example.platform.downloader.domain.JobEvent;
+import com.example.platform.downloader.domain.entity.JobEvent;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

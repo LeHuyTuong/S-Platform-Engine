@@ -1,4 +1,4 @@
-package com.example.platform.downloader.domain;
+package com.example.platform.downloader.domain.enums;
 
 /** Nhóm lỗi chuẩn hóa để quyết định retry và thông điệp hiển thị. */
 public enum FailureCategory {
@@ -6,7 +6,7 @@ public enum FailureCategory {
     NONE,
     /** Bị rate limit, thường có thể retry. */
     RATE_LIMIT,
-    /** Lỗi tạm thời từ mạng/hạ tầng/provider, thường có thể retry. */
+    /** Lỗi tạm thời từ mạng, hạ tầng hoặc provider; thường có thể retry. */
     TEMPORARY,
     /** URL đầu vào sai hoặc không parse được. */
     INVALID_URL,

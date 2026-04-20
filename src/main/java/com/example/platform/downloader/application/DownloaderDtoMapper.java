@@ -1,7 +1,7 @@
 package com.example.platform.downloader.application;
 
-import com.example.platform.downloader.domain.Job;
-import com.example.platform.downloader.domain.SourceRequest;
+import com.example.platform.downloader.domain.entity.Job;
+import com.example.platform.downloader.domain.entity.SourceRequest;
 import com.example.platform.downloader.ui.dto.JobFileResponse;
 import com.example.platform.downloader.ui.dto.JobStatusResponse;
 import com.example.platform.downloader.ui.dto.SourceRequestResponse;

@@ -1,6 +1,6 @@
 package com.example.platform.downloader.application.provider;
 
-import com.example.platform.downloader.domain.FailureCategory;
+import com.example.platform.downloader.domain.enums.FailureCategory;
 import com.example.platform.downloader.infrastructure.AppSettings;
 import com.example.platform.downloader.infrastructure.WorkerProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -74,7 +74,7 @@ class YouTubeContentProviderTest {
 
     @Test
     void buildDownloadCommandUsesNamedFfmpegPostProcessorArgs() {
-        com.example.platform.downloader.domain.Job job = new com.example.platform.downloader.domain.Job();
+        com.example.platform.downloader.domain.entity.Job job = new com.example.platform.downloader.domain.entity.Job();
         job.setUrl("https://www.youtube.com/watch?v=abc123");
         job.setDownloadType("VIDEO");
         job.setQuality("360");

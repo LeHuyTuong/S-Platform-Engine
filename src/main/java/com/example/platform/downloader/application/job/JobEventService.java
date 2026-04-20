@@ -1,8 +1,8 @@
-package com.example.platform.downloader.application;
+package com.example.platform.downloader.application.job;
 
-import com.example.platform.downloader.domain.EventLevel;
-import com.example.platform.downloader.domain.Job;
-import com.example.platform.downloader.domain.JobEvent;
+import com.example.platform.downloader.domain.entity.Job;
+import com.example.platform.downloader.domain.entity.JobEvent;
+import com.example.platform.downloader.domain.enums.EventLevel;
 import com.example.platform.downloader.infrastructure.JobEventRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
@@ -65,3 +65,4 @@ public class JobEventService {
         return messages;
     }
 }
+

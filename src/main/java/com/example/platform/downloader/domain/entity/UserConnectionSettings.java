@@ -1,4 +1,4 @@
-package com.example.platform.downloader.domain;
+package com.example.platform.downloader.domain.entity;
 
 import com.example.platform.kernel.domain.BaseAuditEntity;
 import com.example.platform.modules.user.domain.User;
@@ -15,9 +15,9 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "user_connection_settings")
 /**
- * Cấu hình kết nối theo từng user, được lưu bền thay vì nhét vào HttpSession.
+ * Cấu hình kết nối theo từng user, được lưu bền thay vì nhét vào `HttpSession`.
  *
- * Các field nhạy cảm được lưu dưới dạng dữ liệu mã hóa + IV để worker nền vẫn dùng
+ * Các field nhạy cảm được lưu dưới dạng dữ liệu mã hóa kèm IV để worker nền vẫn dùng
  * được mà API không cần trả raw secret về client.
  */
 public class UserConnectionSettings extends BaseAuditEntity {

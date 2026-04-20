@@ -1,5 +1,6 @@
-package com.example.platform.downloader.domain;
+package com.example.platform.downloader.domain.entity;
 
+import com.example.platform.downloader.domain.enums.StoredAssetType;
 import com.example.platform.kernel.domain.BaseAuditEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,7 +17,7 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "stored_assets")
 /**
- * Danh mục file được tạo ra từ một Job.
+ * Danh mục file được tạo ra từ một job.
  *
  * Sau khi tải xong và hậu xử lý xong, worker sẽ quét lại thư mục job rồi đồng bộ
  * các file vào bảng này để UI/API liệt kê file an toàn mà không lộ path tùy ý.

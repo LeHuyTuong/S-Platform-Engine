@@ -1,10 +1,10 @@
 package com.example.platform.downloader.ui;
 
 import com.example.platform.bootstrap.PlatformApplication;
-import com.example.platform.downloader.domain.Job;
-import com.example.platform.downloader.domain.JobState;
-import com.example.platform.downloader.domain.Platform;
-import com.example.platform.downloader.domain.SourceType;
+import com.example.platform.downloader.domain.entity.Job;
+import com.example.platform.downloader.domain.enums.JobState;
+import com.example.platform.downloader.domain.enums.Platform;
+import com.example.platform.downloader.domain.enums.SourceType;
 import com.example.platform.downloader.infrastructure.JobRepository;
 import com.example.platform.modules.user.domain.User;
 import com.example.platform.modules.user.infrastructure.UserRepository;

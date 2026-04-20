@@ -1,6 +1,6 @@
 package com.example.platform.downloader.application.provider;
 
-import com.example.platform.downloader.domain.Platform;
+import com.example.platform.downloader.domain.enums.Platform;
 import com.example.platform.downloader.infrastructure.AppSettings;
 import com.example.platform.downloader.infrastructure.WorkerProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;

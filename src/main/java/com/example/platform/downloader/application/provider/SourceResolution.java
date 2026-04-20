@@ -1,6 +1,6 @@
 package com.example.platform.downloader.application.provider;
 
-import com.example.platform.downloader.domain.SourceType;
+import com.example.platform.downloader.domain.enums.SourceType;
 
 import java.util.ArrayList;
 import java.util.List;

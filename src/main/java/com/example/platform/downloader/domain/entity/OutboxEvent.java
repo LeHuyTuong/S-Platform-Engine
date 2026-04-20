@@ -1,5 +1,6 @@
-package com.example.platform.downloader.domain;
+package com.example.platform.downloader.domain.entity;
 
+import com.example.platform.downloader.domain.enums.OutboxStatus;
 import com.example.platform.kernel.domain.BaseAuditEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,8 +17,8 @@ import java.util.UUID;
 /**
  * Cầu nối bền vững giữa transaction DB và xử lý bất đồng bộ của worker.
  *
- * API/worker ghi row vào đây trong cùng transaction với thay đổi domain, sau đó
- * dispatcher mới publish hoặc execute event để không bị mất ý định xử lý.
+ * API hoặc worker ghi row vào đây trong cùng transaction với thay đổi domain,
+ * sau đó dispatcher mới publish hoặc execute event để không bị mất ý định xử lý.
  */
 public class OutboxEvent extends BaseAuditEntity {
 
@@ -37,7 +38,7 @@ public class OutboxEvent extends BaseAuditEntity {
     @Column(nullable = false, columnDefinition = "text")
     private String payload;
 
-    // Trạng thái/phụ trợ phục vụ publish local hoặc qua Redis Streams.
+    // Trạng thái và metadata phụ trợ cho publish local hoặc qua Redis Streams.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private OutboxStatus status;

@@ -1,4 +1,4 @@
-package com.example.platform.downloader.domain;
+package com.example.platform.downloader.domain.enums;
 
 /** Danh sách nền tảng mà pipeline downloader hiện hỗ trợ. */
 public enum Platform {

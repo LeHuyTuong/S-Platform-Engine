@@ -1,9 +1,9 @@
 package com.example.platform.downloader.application.provider;
 
-import com.example.platform.downloader.domain.FailureCategory;
-import com.example.platform.downloader.domain.Job;
-import com.example.platform.downloader.domain.Platform;
-import com.example.platform.downloader.domain.SourceRequest;
+import com.example.platform.downloader.domain.enums.FailureCategory;
+import com.example.platform.downloader.domain.entity.Job;
+import com.example.platform.downloader.domain.enums.Platform;
+import com.example.platform.downloader.domain.entity.SourceRequest;
 
 import java.nio.file.Path;
 import java.util.List;

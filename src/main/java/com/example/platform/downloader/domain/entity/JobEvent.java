@@ -1,5 +1,6 @@
-package com.example.platform.downloader.domain;
+package com.example.platform.downloader.domain.entity;
 
+import com.example.platform.downloader.domain.enums.EventLevel;
 import com.example.platform.kernel.domain.BaseAuditEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,9 +17,9 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "job_events")
 /**
- * Log/event đã được persist để UI poll trạng thái và để debug sau sự cố.
+ * Log hoặc event được persist để UI poll trạng thái và để debug sau sự cố.
  *
- * Service có thể chỉ giữ phần log gần nhất, nhưng từng dòng vẫn có sequenceNo
+ * Dù service có thể chỉ giữ phần log gần nhất, từng dòng vẫn có `sequenceNo`
  * để khôi phục đúng thứ tự phát sinh.
  */
 public class JobEvent extends BaseAuditEntity {
@@ -27,7 +28,7 @@ public class JobEvent extends BaseAuditEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Job cha nhận dòng event/log này.
+    // Job cha nhận dòng event hoặc log này.
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "job_id", nullable = false)
     private Job job;

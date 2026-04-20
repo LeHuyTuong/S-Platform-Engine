@@ -1,9 +1,9 @@
 package com.example.platform.downloader.application;
 
-import com.example.platform.downloader.domain.FailureCategory;
-import com.example.platform.downloader.domain.Job;
-import com.example.platform.downloader.domain.JobState;
-import com.example.platform.downloader.domain.OutboxStatus;
+import com.example.platform.downloader.domain.enums.FailureCategory;
+import com.example.platform.downloader.domain.entity.Job;
+import com.example.platform.downloader.domain.enums.JobState;
+import com.example.platform.downloader.domain.enums.OutboxStatus;
 import com.example.platform.downloader.infrastructure.JobRepository;
 import com.example.platform.downloader.infrastructure.OutboxEventRepository;
 import io.micrometer.core.instrument.Counter;

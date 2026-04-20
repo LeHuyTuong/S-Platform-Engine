@@ -1,7 +1,7 @@
 package com.example.platform.downloader.application;
 
 import com.example.platform.downloader.domain.RuntimeSettings;
-import com.example.platform.downloader.domain.UserConnectionSettings;
+import com.example.platform.downloader.domain.entity.UserConnectionSettings;
 import com.example.platform.downloader.infrastructure.UserConnectionSettingsRepository;
 import com.example.platform.modules.user.domain.User;
 import jakarta.transaction.Transactional;

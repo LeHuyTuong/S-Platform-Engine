@@ -1,7 +1,7 @@
 package com.example.platform.downloader.infrastructure;
 
-import com.example.platform.downloader.domain.Job;
-import com.example.platform.downloader.domain.JobState;
+import com.example.platform.downloader.domain.entity.Job;
+import com.example.platform.downloader.domain.enums.JobState;
 import com.example.platform.modules.user.domain.User;
 import jakarta.transaction.Transactional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -26,7 +26,7 @@ public interface JobRepository extends JpaRepository<Job, String> {
     long countByStateIn(Collection<JobState> states);
 
     boolean existsByUserIdAndPlatformAndExternalItemIdAndRequestedVariant(
-            Long userId, com.example.platform.downloader.domain.Platform platform, String externalItemId, String requestedVariant);
+            Long userId, com.example.platform.downloader.domain.enums.Platform platform, String externalItemId, String requestedVariant);
 
     @Query("""
             select j from Job j

@@ -1,7 +1,7 @@
-package com.example.platform.downloader.application;
+package com.example.platform.downloader.application.outbox;
 
-import com.example.platform.downloader.domain.OutboxEvent;
-import com.example.platform.downloader.domain.OutboxStatus;
+import com.example.platform.downloader.domain.entity.OutboxEvent;
+import com.example.platform.downloader.domain.enums.OutboxStatus;
 import com.example.platform.downloader.infrastructure.OutboxEventRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -67,3 +67,4 @@ public class OutboxService {
         outboxEventRepository.save(event);
     }
 }
+

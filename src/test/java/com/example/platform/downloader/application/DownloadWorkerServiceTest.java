@@ -1,9 +1,13 @@
 package com.example.platform.downloader.application;
 
-import com.example.platform.downloader.domain.FailureCategory;
-import com.example.platform.downloader.domain.Job;
-import com.example.platform.downloader.domain.JobState;
-import com.example.platform.downloader.domain.Platform;
+import com.example.platform.downloader.application.job.DownloadWorkerService;
+import com.example.platform.downloader.application.job.JobEventService;
+import com.example.platform.downloader.application.outbox.OutboxService;
+import com.example.platform.downloader.domain.enums.FailureCategory;
+import com.example.platform.downloader.domain.entity.Job;
+import com.example.platform.downloader.domain.enums.JobState;
+import com.example.platform.downloader.domain.enums.Platform;
+import com.example.platform.downloader.exception.ClassifiedDownloadException;
 import com.example.platform.downloader.infrastructure.DownloadAttemptRepository;
 import com.example.platform.downloader.infrastructure.JobRepository;
 import com.example.platform.downloader.infrastructure.WorkerProperties;

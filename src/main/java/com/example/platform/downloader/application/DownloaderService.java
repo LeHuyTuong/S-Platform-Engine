@@ -1,11 +1,13 @@
 package com.example.platform.downloader.application;
 
+import com.example.platform.downloader.application.job.JobEventService;
 import com.example.platform.downloader.application.provider.ContentProvider;
 import com.example.platform.downloader.application.provider.ProgressSnapshot;
 import com.example.platform.downloader.application.provider.ProviderRegistry;
-import com.example.platform.downloader.domain.FailureCategory;
-import com.example.platform.downloader.domain.Job;
-import com.example.platform.downloader.domain.Platform;
+import com.example.platform.downloader.domain.enums.FailureCategory;
+import com.example.platform.downloader.domain.entity.Job;
+import com.example.platform.downloader.domain.enums.Platform;
+import com.example.platform.downloader.exception.ClassifiedDownloadException;
 import com.example.platform.modules.user.domain.User;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;

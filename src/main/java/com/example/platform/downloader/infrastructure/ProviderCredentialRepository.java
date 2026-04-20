@@ -1,8 +1,8 @@
 package com.example.platform.downloader.infrastructure;
 
-import com.example.platform.downloader.domain.CredentialType;
-import com.example.platform.downloader.domain.Platform;
-import com.example.platform.downloader.domain.ProviderCredential;
+import com.example.platform.downloader.domain.enums.CredentialType;
+import com.example.platform.downloader.domain.enums.Platform;
+import com.example.platform.downloader.domain.entity.ProviderCredential;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

@@ -1,9 +1,11 @@
 package com.example.platform.downloader.application;
 
-import com.example.platform.downloader.domain.FailureCategory;
-import com.example.platform.downloader.domain.Job;
-import com.example.platform.downloader.domain.StoredAsset;
-import com.example.platform.downloader.domain.StoredAssetType;
+import com.example.platform.downloader.application.job.JobEventService;
+import com.example.platform.downloader.domain.enums.FailureCategory;
+import com.example.platform.downloader.domain.entity.Job;
+import com.example.platform.downloader.domain.entity.StoredAsset;
+import com.example.platform.downloader.domain.enums.StoredAssetType;
+import com.example.platform.downloader.exception.ClassifiedDownloadException;
 import com.example.platform.downloader.infrastructure.AppSettings;
 import com.example.platform.downloader.infrastructure.JobRepository;
 import com.example.platform.downloader.infrastructure.StoredAssetRepository;

@@ -1,8 +1,8 @@
 package com.example.platform.downloader.application;
 
-import com.example.platform.downloader.domain.CredentialType;
-import com.example.platform.downloader.domain.Platform;
-import com.example.platform.downloader.domain.ProviderCredential;
+import com.example.platform.downloader.domain.enums.CredentialType;
+import com.example.platform.downloader.domain.enums.Platform;
+import com.example.platform.downloader.domain.entity.ProviderCredential;
 import com.example.platform.downloader.infrastructure.ProviderCredentialRepository;
 import com.example.platform.modules.user.domain.User;
 import jakarta.transaction.Transactional;

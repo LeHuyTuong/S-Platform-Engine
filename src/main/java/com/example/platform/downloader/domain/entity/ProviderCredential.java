@@ -1,5 +1,7 @@
-package com.example.platform.downloader.domain;
+package com.example.platform.downloader.domain.entity;
 
+import com.example.platform.downloader.domain.enums.CredentialType;
+import com.example.platform.downloader.domain.enums.Platform;
 import com.example.platform.kernel.domain.BaseAuditEntity;
 import com.example.platform.modules.user.domain.User;
 import jakarta.persistence.Column;
@@ -17,10 +19,10 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "provider_credentials")
 /**
- * Lưu credential đã mã hóa theo user/provider/type.
+ * Lưu credential đã mã hóa theo user, provider và loại credential.
  *
- * Ở v1 bảng này chủ yếu dùng cho cookies.txt để yt-dlp truy cập được nội dung
- * cần cookie trình duyệt.
+ * Ở v1 bảng này chủ yếu dùng cho `cookies.txt` để `yt-dlp` truy cập được
+ * nội dung public bị giới hạn theo phiên trình duyệt.
  */
 public class ProviderCredential extends BaseAuditEntity {
 

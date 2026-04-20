@@ -1,13 +1,14 @@
 package com.example.platform.downloader.application;
 
+import com.example.platform.downloader.application.outbox.OutboxService;
 import com.example.platform.downloader.application.provider.ContentProvider;
 import com.example.platform.downloader.application.provider.ProviderRegistry;
-import com.example.platform.downloader.domain.Job;
-import com.example.platform.downloader.domain.JobState;
-import com.example.platform.downloader.domain.Platform;
-import com.example.platform.downloader.domain.SourceRequest;
-import com.example.platform.downloader.domain.SourceRequestState;
-import com.example.platform.downloader.domain.SourceType;
+import com.example.platform.downloader.domain.entity.Job;
+import com.example.platform.downloader.domain.enums.JobState;
+import com.example.platform.downloader.domain.enums.Platform;
+import com.example.platform.downloader.domain.entity.SourceRequest;
+import com.example.platform.downloader.domain.enums.SourceRequestState;
+import com.example.platform.downloader.domain.enums.SourceType;
 import com.example.platform.downloader.infrastructure.JobRepository;
 import com.example.platform.downloader.infrastructure.SourceRequestRepository;
 import com.example.platform.downloader.ui.dto.SubmitSourceRequest;

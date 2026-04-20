@@ -1,6 +1,6 @@
-package com.example.platform.downloader.application;
+package com.example.platform.downloader.exception;
 
-import com.example.platform.downloader.domain.FailureCategory;
+import com.example.platform.downloader.domain.enums.FailureCategory;
 
 public class ClassifiedDownloadException extends RuntimeException {
 
@@ -15,3 +15,4 @@ public class ClassifiedDownloadException extends RuntimeException {
         return failureCategory;
     }
 }
+

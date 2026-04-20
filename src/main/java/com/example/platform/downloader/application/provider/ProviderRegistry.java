@@ -1,6 +1,6 @@
 package com.example.platform.downloader.application.provider;
 
-import com.example.platform.downloader.domain.Platform;
+import com.example.platform.downloader.domain.enums.Platform;
 import org.springframework.stereotype.Component;
 
 import java.util.List;

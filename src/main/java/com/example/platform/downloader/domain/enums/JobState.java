@@ -1,6 +1,6 @@
-package com.example.platform.downloader.domain;
+package com.example.platform.downloader.domain.enums;
 
-/** Vòng đời ở góc nhìn worker cho một Job tải cụ thể. */
+/** Vòng đời ở góc nhìn worker cho một job tải cụ thể. */
 public enum JobState {
     /** Job vừa được materialize nhưng chưa vào hàng đợi thực thi. */
     ACCEPTED,
@@ -10,7 +10,7 @@ public enum JobState {
     QUEUED,
     /** Worker đã claim và đang chạy tiến trình tải. */
     RUNNING,
-    /** Đang hậu xử lý sau khi tải xong, ví dụ watermark/manifest/sync file. */
+    /** Đang hậu xử lý sau khi tải xong, ví dụ watermark, manifest hoặc đồng bộ file. */
     POST_PROCESSING,
     /** Tải và hậu xử lý hoàn tất. */
     COMPLETED,

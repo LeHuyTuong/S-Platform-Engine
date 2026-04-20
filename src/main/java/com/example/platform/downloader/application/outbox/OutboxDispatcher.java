@@ -1,7 +1,8 @@
-package com.example.platform.downloader.application;
+package com.example.platform.downloader.application.outbox;
 
-import com.example.platform.downloader.domain.OutboxEvent;
-import com.example.platform.downloader.domain.OutboxStatus;
+import com.example.platform.downloader.application.job.DownloadWorkerService;
+import com.example.platform.downloader.domain.entity.OutboxEvent;
+import com.example.platform.downloader.domain.enums.OutboxStatus;
 import com.example.platform.downloader.infrastructure.OutboxEventRepository;
 import com.example.platform.downloader.infrastructure.WorkerProperties;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -25,7 +26,7 @@ import java.util.Map;
 /**
  * Chuyển outbox row đã lưu bền thành công việc thực tế cho worker.
  *
- * Nếu tắt Redis thì dispatchPending() sẽ publish và xử lý local.
+ * Nếu tắt Redis thì `dispatchPending()` sẽ publish và xử lý local.
  * Nếu bật Redis thì row sẽ được đẩy vào stream để worker instance khác consume.
  */
 public class OutboxDispatcher {
@@ -55,8 +56,11 @@ public class OutboxDispatcher {
     public void init() {
         if (workerProperties.isRedisEnabled() && stringRedisTemplate != null) {
             try {
-                stringRedisTemplate.opsForStream().createGroup(workerProperties.getStreamKey(), ReadOffset.latest(),
-                        workerProperties.getConsumerGroup());
+                stringRedisTemplate.opsForStream().createGroup(
+                        workerProperties.getStreamKey(),
+                        ReadOffset.latest(),
+                        workerProperties.getConsumerGroup()
+                );
             } catch (Exception ignored) {
             }
         }
@@ -67,9 +71,14 @@ public class OutboxDispatcher {
         if (!workerProperties.isEnabled()) {
             return;
         }
-        // Các retry có delay sẽ nằm yên ở trạng thái PENDING cho tới khi availableAt tới hạn.
+
+        // Các retry có delay sẽ nằm yên ở trạng thái `PENDING` cho tới khi `availableAt` tới hạn.
         List<OutboxEvent> pending = outboxEventRepository
-                .findTop50ByStatusAndAvailableAtLessThanEqualOrderByCreatedAtAsc(OutboxStatus.PENDING, java.time.LocalDateTime.now());
+                .findTop50ByStatusAndAvailableAtLessThanEqualOrderByCreatedAtAsc(
+                        OutboxStatus.PENDING,
+                        java.time.LocalDateTime.now()
+                );
+
         for (OutboxEvent event : pending) {
             try {
                 if (workerProperties.isRedisEnabled() && stringRedisTemplate != null) {
@@ -108,8 +117,11 @@ public class OutboxDispatcher {
                 if (event != null) {
                     process(event);
                 }
-                stringRedisTemplate.opsForStream().acknowledge(workerProperties.getStreamKey(),
-                        workerProperties.getConsumerGroup(), record.getId());
+                stringRedisTemplate.opsForStream().acknowledge(
+                        workerProperties.getStreamKey(),
+                        workerProperties.getConsumerGroup(),
+                        record.getId()
+                );
             }
         } catch (Exception ignored) {
         }
@@ -123,7 +135,7 @@ public class OutboxDispatcher {
     }
 
     private void process(OutboxEvent event) {
-        // Payload event chỉ chứa id/type tối thiểu; dữ liệu chuẩn luôn được load lại từ DB.
+        // Payload event chỉ chứa id và type tối thiểu; dữ liệu chuẩn luôn được load lại từ DB.
         try {
             Map<String, Object> payload = objectMapper.readValue(event.getPayload(), new TypeReference<>() {});
             if ("SOURCE_REQUEST_ACCEPTED".equals(event.getEventType())) {

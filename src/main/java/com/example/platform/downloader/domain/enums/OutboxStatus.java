@@ -1,6 +1,6 @@
-package com.example.platform.downloader.domain;
+package com.example.platform.downloader.domain.enums;
 
-/** Trạng thái phát hành/xử lý của một OutboxEvent. */
+/** Trạng thái phát hành và xử lý của một `OutboxEvent`. */
 public enum OutboxStatus {
     /** Mới tạo, chưa publish. */
     PENDING,
@@ -8,6 +8,6 @@ public enum OutboxStatus {
     PUBLISHED,
     /** Event đã được xử lý thành công. */
     PROCESSED,
-    /** Publish/process lỗi, sẽ đợi retry hoặc cần replay. */
+    /** Publish hoặc process lỗi, sẽ đợi retry hoặc cần replay. */
     FAILED
 }

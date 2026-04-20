@@ -1,5 +1,8 @@
-package com.example.platform.downloader.domain;
+package com.example.platform.downloader.domain.entity;
 
+import com.example.platform.downloader.domain.enums.Platform;
+import com.example.platform.downloader.domain.enums.SourceRequestState;
+import com.example.platform.downloader.domain.enums.SourceType;
 import com.example.platform.kernel.domain.BaseAuditEntity;
 import com.example.platform.modules.user.domain.User;
 import jakarta.persistence.Column;
@@ -17,11 +20,11 @@ import java.util.UUID;
 @Entity
 @Table(name = "source_requests")
 /**
- * Bản ghi yêu cầu đầu vào ở tầng API, được tạo ra trước khi có tác vụ tải cụ thể.
+ * Bản ghi yêu cầu đầu vào ở tầng API, được tạo ra trước khi có job tải cụ thể.
  *
- * Một SourceRequest có thể sinh ra:
- * - đúng 1 Job nếu là DIRECT_URL
- * - nhiều Job con sau bước resolve nếu là PLAYLIST/PROFILE
+ * Một `SourceRequest` có thể sinh ra:
+ * - đúng 1 `Job` nếu là `DIRECT_URL`
+ * - nhiều job con sau bước resolve nếu là `PLAYLIST` hoặc `PROFILE`
  */
 public class SourceRequest extends BaseAuditEntity {
 
@@ -47,14 +50,14 @@ public class SourceRequest extends BaseAuditEntity {
     @Column(nullable = false, length = 32)
     private SourceRequestState state;
 
-    // URL gốc người dùng gửi lên và bản normalize dùng cho resolve/dedupe.
+    // URL gốc người dùng gửi lên và bản normalize dùng cho resolve hoặc dedupe.
     @Column(nullable = false, length = 1000)
     private String sourceUrl;
 
     @Column(length = 1000)
     private String normalizedUrl;
 
-    // Tùy chọn đầu ra sẽ được copy sang Job để worker không phụ thuộc trạng thái web/session.
+    // Tùy chọn đầu ra sẽ được copy sang job để worker không phụ thuộc web/session.
     @Column(length = 32)
     private String requestedDownloadType;
 
@@ -76,7 +79,7 @@ public class SourceRequest extends BaseAuditEntity {
     @Column(length = 32)
     private String endTime;
 
-    // Các cờ hậu xử lý được áp dụng khi worker chạy Job.
+    // Các cờ hậu xử lý được áp dụng khi worker chạy job.
     @Column(nullable = false)
     private boolean cleanMetadata;
 
@@ -89,7 +92,7 @@ public class SourceRequest extends BaseAuditEntity {
     @Column(length = 255)
     private String titleTemplate;
 
-    // Kết quả resolve được ghi bởi phía provider/worker của pipeline.
+    // Kết quả resolve được ghi bởi provider hoặc worker của pipeline.
     @Column(length = 2000)
     private String errorMessage;
 

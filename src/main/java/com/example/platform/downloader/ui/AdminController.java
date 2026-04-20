@@ -1,7 +1,7 @@
 package com.example.platform.downloader.ui;
 
 import com.example.platform.downloader.application.SourceRequestService;
-import com.example.platform.downloader.domain.Job;
+import com.example.platform.downloader.domain.entity.Job;
 import com.example.platform.downloader.infrastructure.AppSettings;
 import com.example.platform.downloader.infrastructure.JobRepository;
 import com.example.platform.kernel.exception.BusinessException;

@@ -1,6 +1,6 @@
-package com.example.platform.downloader.domain;
+package com.example.platform.downloader.domain.enums;
 
-/** Mức độ nghiêm trọng của từng dòng log/event đã persist. */
+/** Mức độ nghiêm trọng của từng dòng log hoặc event đã persist. */
 public enum EventLevel {
     /** Thông tin tiến trình bình thường. */
     INFO,

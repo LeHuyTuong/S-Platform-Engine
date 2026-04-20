@@ -1,6 +1,6 @@
 package com.example.platform.downloader.infrastructure;
 
-import com.example.platform.downloader.domain.StoredAsset;
+import com.example.platform.downloader.domain.entity.StoredAsset;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
