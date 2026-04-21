@@ -24,15 +24,19 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class DownloaderService {
+
+    private static final long PROGRESS_PERSIST_INTERVAL_MS = 500L;
 
     private final ProviderRegistry providerRegistry;
     private final DownloadArtifactService downloadArtifactService;
     private final JobEventService jobEventService;
     private final ProviderCredentialService providerCredentialService;
     private final String downloadDir;
+    private final Map<String, Long> lastPersistTime = new ConcurrentHashMap<>();
 
     public DownloaderService(ProviderRegistry providerRegistry,
                              DownloadArtifactService downloadArtifactService,
@@ -120,11 +124,14 @@ public class DownloaderService {
             job.setProgressPercent(100.0);
             job.setDownloadSpeed(null);
             job.setEta(null);
-            persistRuntimeProgress(job);
+            job.setErrorMessage(null);
+            persistRuntimeProgress(job, true);
         } catch (ClassifiedDownloadException e) {
             throw e;
         } catch (Exception e) {
             throw new ClassifiedDownloadException(FailureCategory.PROCESS_ERROR, e.getMessage());
+        } finally {
+            clearPersistTimer(job.getId());
         }
     }
 
@@ -190,10 +197,35 @@ public class DownloaderService {
         return providerRegistry.detect(job.getUrl());
     }
 
-    private void persistRuntimeProgress(Job job) {
+    protected void persistRuntimeProgress(Job job) {
+        persistRuntimeProgress(job, false);
+    }
+
+    protected void persistRuntimeProgress(Job job, boolean force) {
         if (job.getId() == null) {
             return;
         }
+        if (!force) {
+            long now = currentTimeMillis();
+            Long last = lastPersistTime.get(job.getId());
+            if (last != null && now - last < PROGRESS_PERSIST_INTERVAL_MS) {
+                return;
+            }
+            lastPersistTime.put(job.getId(), now);
+        } else {
+            lastPersistTime.put(job.getId(), currentTimeMillis());
+        }
         downloadArtifactService.persistRuntimeProgress(job);
+    }
+
+    protected void clearPersistTimer(String jobId) {
+        if (jobId == null || jobId.isBlank()) {
+            return;
+        }
+        lastPersistTime.remove(jobId);
+    }
+
+    protected long currentTimeMillis() {
+        return System.currentTimeMillis();
     }
 }

@@ -116,6 +116,28 @@ class ApiV1SecurityIntegrationTest {
     }
 
     @Test
+    void invalidPaginationReturnsBusinessErrorEnvelope() throws Exception {
+        MockHttpSession session = loginAs("user@test.com", "user");
+
+        mockMvc.perform(get("/api/v1/jobs?page=-1&size=20").session(session))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("page must be greater than or equal to 0"));
+    }
+
+    @Test
+    void oversizedPaginationReturnsBusinessErrorEnvelope() throws Exception {
+        MockHttpSession session = loginAs("user@test.com", "user");
+
+        mockMvc.perform(get("/api/v1/source-requests?page=0&size=101").session(session))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("BUSINESS_ERROR"))
+                .andExpect(jsonPath("$.message").value("size must be between 1 and 100"));
+    }
+
+    @Test
     void userCannotReadRuntimeSettingsApi() throws Exception {
         MockHttpSession session = loginAs("user@test.com", "user");
 

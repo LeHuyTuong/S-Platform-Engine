@@ -1,0 +1,124 @@
+@baseUrl = http://localhost:8080
+@userEmail = user@test.com
+@userPassword = user
+@adminEmail = admin@test.com
+@adminPassword = admin
+
+### Get CSRF token for session login
+# @name csrf
+GET {{baseUrl}}/api/v1/auth/csrf
+Accept: application/json
+
+> {%
+client.global.set("csrfToken", response.body.data.token);
+client.global.set("csrfHeaderName", response.body.data.headerName);
+%}
+
+### Login as normal user
+# @name loginUser
+POST {{baseUrl}}/api/v1/auth/login
+Accept: application/json
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "email": "{{userEmail}}",
+  "password": "{{userPassword}}"
+}
+
+### Current session
+GET {{baseUrl}}/api/v1/auth/me
+Accept: application/json
+
+### List source requests
+GET {{baseUrl}}/api/v1/source-requests?page=0&size=20
+Accept: application/json
+
+### List jobs
+GET {{baseUrl}}/api/v1/jobs?page=0&size=20
+Accept: application/json
+
+### List jobs with filters
+GET {{baseUrl}}/api/v1/jobs?page=0&size=20&state=RUNNING&platform=YOUTUBE
+Accept: application/json
+
+### Invalid pagination example
+GET {{baseUrl}}/api/v1/jobs?page=-1&size=20
+Accept: application/json
+
+### Submit a new source request
+POST {{baseUrl}}/api/v1/source-requests
+Accept: application/json
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "sourceUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "platform": "YOUTUBE",
+  "sourceType": "DIRECT_URL",
+  "downloadType": "VIDEO",
+  "quality": "best",
+  "format": "mp4",
+  "writeThumbnail": true,
+  "cleanMetadata": false
+}
+
+### Replace {{jobId}} after creating or listing jobs
+@jobId = replace-me
+
+### Job detail
+GET {{baseUrl}}/api/v1/jobs/{{jobId}}
+Accept: application/json
+
+### Job logs
+GET {{baseUrl}}/api/v1/jobs/{{jobId}}/logs
+Accept: application/json
+
+### Job files
+GET {{baseUrl}}/api/v1/jobs/{{jobId}}/files
+Accept: application/json
+
+### Download a file after copying the encoded filename from the previous response
+@encodedFilename = replace-me
+GET {{baseUrl}}/api/v1/jobs/{{jobId}}/files/{{encodedFilename}}
+
+### Provider credential status
+GET {{baseUrl}}/api/v1/provider-credentials/status
+Accept: application/json
+
+### Runtime settings status (publisher/admin only)
+GET {{baseUrl}}/api/v1/runtime-settings
+Accept: application/json
+
+### Logout current session
+POST {{baseUrl}}/api/v1/auth/logout
+Accept: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+### Fresh login as admin
+# @name csrfAdmin
+GET {{baseUrl}}/api/v1/auth/csrf
+Accept: application/json
+
+> {%
+client.global.set("csrfToken", response.body.data.token);
+%}
+
+### Login as admin
+POST {{baseUrl}}/api/v1/auth/login
+Accept: application/json
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### Admin dashboard
+GET {{baseUrl}}/api/v1/admin/dashboard
+Accept: application/json
+
+### Admin jobs
+GET {{baseUrl}}/api/v1/admin/jobs?page=0&size=20
+Accept: application/json

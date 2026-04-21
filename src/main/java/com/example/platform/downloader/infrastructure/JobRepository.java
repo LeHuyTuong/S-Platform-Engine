@@ -25,7 +25,7 @@ public interface JobRepository extends JpaRepository<Job, String> {
 
     List<Job> findByUserOrderByCreatedAtDesc(User user);
 
-    @Query("""
+    @Query(value = """
             select j from Job j
             left join fetch j.sourceRequest
             where (:userId is null or j.user.id = :userId)
@@ -124,7 +124,7 @@ public interface JobRepository extends JpaRepository<Job, String> {
                 j.videoTitle = coalesce(:videoTitle, j.videoTitle),
                 j.currentItem = coalesce(:currentItem, j.currentItem),
                 j.totalItems = coalesce(:totalItems, j.totalItems),
-                j.errorMessage = coalesce(:errorMessage, j.errorMessage)
+                j.errorMessage = :errorMessage
             where j.id = :jobId
             """)
     int updateRuntimeProgress(

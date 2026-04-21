@@ -22,6 +22,7 @@ import com.example.platform.downloader.ui.dto.SourceRequestResponse;
 import com.example.platform.downloader.ui.dto.SubmitSourceRequest;
 import com.example.platform.kernel.exception.BusinessException;
 import com.example.platform.kernel.exception.ResourceNotFoundException;
+import com.example.platform.kernel.ui.ApiPaginationSupport;
 import com.example.platform.kernel.ui.RestResponse;
 import com.example.platform.modules.user.domain.User;
 import org.springframework.core.io.Resource;
@@ -115,7 +116,7 @@ public class DownloaderApiV1Controller {
                                                                         @RequestParam(defaultValue = "0") int page,
                                                                         @RequestParam(defaultValue = "20") int size) {
         User user = accessPolicyService.currentUser(principal);
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Pageable pageable = ApiPaginationSupport.pageRequest(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<SourceRequest> results = sourceRequestRepository.findByUserOrderByCreatedAtDesc(user, pageable);
         Map<String, List<JobStatusResponse>> jobsBySourceRequestId = listJobSummariesBySourceRequest(results.getContent());
 
@@ -127,7 +128,7 @@ public class DownloaderApiV1Controller {
                 .toList();
 
         RestResponse<List<SourceRequestResponse>> response = RestResponse.ok(data);
-        response.setMeta(pageMeta(results));
+        response.setMeta(ApiPaginationSupport.pageMeta(results));
         return response;
     }
 
@@ -152,14 +153,14 @@ public class DownloaderApiV1Controller {
                                                           @RequestParam(required = false) Job.JobStatus status,
                                                           @RequestParam(required = false) Platform platform) {
         User user = accessPolicyService.currentUser(principal);
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Pageable pageable = ApiPaginationSupport.pageRequest(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Job> results = jobRepository.searchJobs(user.getId(), state, status, platform, pageable);
         List<JobStatusResponse> data = results.getContent().stream()
                 .map(this::toJobSummaryResponse)
                 .toList();
 
         RestResponse<List<JobStatusResponse>> response = RestResponse.ok(data);
-        response.setMeta(pageMeta(results));
+        response.setMeta(ApiPaginationSupport.pageMeta(results));
         return response;
     }
 
@@ -335,16 +336,5 @@ public class DownloaderApiV1Controller {
 
     private Platform parsePlatform(String value) {
         return Platform.valueOf(value.toUpperCase(Locale.ROOT));
-    }
-
-    private Map<String, Object> pageMeta(Page<?> page) {
-        Map<String, Object> meta = new LinkedHashMap<>();
-        meta.put("page", page.getNumber());
-        meta.put("size", page.getSize());
-        meta.put("totalItems", page.getTotalElements());
-        meta.put("totalPages", page.getTotalPages());
-        meta.put("hasNext", page.hasNext());
-        meta.put("hasPrevious", page.hasPrevious());
-        return meta;
     }
 }

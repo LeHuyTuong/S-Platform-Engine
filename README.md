@@ -61,5 +61,10 @@ app:
     output-dir: "downloads"
 ```
 
+## API Docs
+
+- REST contract for frontend integration: `docs/api-v1-contract.md`
+- Ready-to-run HTTP requests for IDE clients: `http/api-v1.http`
+
 ## ⚠️ Disclaimer
 This project is for **educational and research purposes only**. It is designed to demonstrate system design principles such as asynchronous processing, rate limiting, and dockerization. The author is not responsible for any misuse of this software.

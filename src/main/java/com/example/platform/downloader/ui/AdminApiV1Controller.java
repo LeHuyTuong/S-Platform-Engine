@@ -10,6 +10,7 @@ import com.example.platform.downloader.infrastructure.JobRepository;
 import com.example.platform.downloader.ui.dto.JobStatusResponse;
 import com.example.platform.kernel.exception.BusinessException;
 import com.example.platform.kernel.exception.ResourceNotFoundException;
+import com.example.platform.kernel.ui.ApiPaginationSupport;
 import com.example.platform.kernel.ui.RestResponse;
 import com.example.platform.modules.user.domain.User;
 import com.example.platform.modules.user.infrastructure.UserRepository;
@@ -86,19 +87,12 @@ public class AdminApiV1Controller {
                                                           @RequestParam(required = false) JobState state,
                                                           @RequestParam(required = false) Job.JobStatus status,
                                                           @RequestParam(required = false) Platform platform) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Pageable pageable = ApiPaginationSupport.pageRequest(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Job> results = jobRepository.searchJobs(null, state, status, platform, pageable);
         RestResponse<List<JobStatusResponse>> response = RestResponse.ok(
                 results.getContent().stream().map(this::toJobSummaryResponse).toList()
         );
-        Map<String, Object> meta = new LinkedHashMap<>();
-        meta.put("page", results.getNumber());
-        meta.put("size", results.getSize());
-        meta.put("totalItems", results.getTotalElements());
-        meta.put("totalPages", results.getTotalPages());
-        meta.put("hasNext", results.hasNext());
-        meta.put("hasPrevious", results.hasPrevious());
-        response.setMeta(meta);
+        response.setMeta(ApiPaginationSupport.pageMeta(results));
         return response;
     }
 
