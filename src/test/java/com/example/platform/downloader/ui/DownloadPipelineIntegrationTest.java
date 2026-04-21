@@ -21,6 +21,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -76,12 +77,13 @@ class DownloadPipelineIntegrationTest {
     private TelegramNotificationService telegramNotificationService;
 
     @Test
-    @WithMockUser(username = "user@test.com", roles = "USER")
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
     void sourceRequestDispatchesThroughOutboxAndCompletesJob() throws Exception {
         doNothing().when(downloaderService).executeDownload(any(Job.class), any());
         when(downloadArtifactService.listJobFiles(anyString())).thenReturn(List.of());
 
         String responseBody = mockMvc.perform(post("/downloader/api/source-requests")
+                        .with(SecurityMockMvcRequestPostProcessors.csrf())
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {
@@ -121,7 +123,7 @@ class DownloadPipelineIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "user@test.com", roles = "USER")
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
     void localDispatchPendingDoesNotBlockSchedulerThreadWhileDownloadRuns() throws Exception {
         doAnswer(invocation -> {
             Thread.sleep(400L);
@@ -130,6 +132,7 @@ class DownloadPipelineIntegrationTest {
         when(downloadArtifactService.listJobFiles(anyString())).thenReturn(List.of());
 
         String responseBody = mockMvc.perform(post("/downloader/api/source-requests")
+                        .with(SecurityMockMvcRequestPostProcessors.csrf())
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {

@@ -53,10 +53,21 @@ public class DownloaderDtoMapper {
     }
 
     public JobFileResponse toJobFile(String name, String path, String contentType, long size) {
+        return toJobFile(name, path, null, contentType, null, size);
+    }
+
+    public JobFileResponse toJobFile(String name,
+                                     String path,
+                                     String downloadUrl,
+                                     String contentType,
+                                     String type,
+                                     long size) {
         JobFileResponse response = new JobFileResponse();
         response.setName(name);
         response.setPath(path);
+        response.setDownloadUrl(downloadUrl);
         response.setContentType(contentType);
+        response.setType(type);
         response.setSize(size);
         return response;
     }

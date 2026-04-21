@@ -26,7 +26,7 @@ public class DownloadAccessPolicyService {
 
     public User currentUser(Principal principal) {
         if (principal == null) {
-            throw new BusinessException("Báº¡n chÆ°a Ä‘Äƒng nháº­p");
+            throw new BusinessException("Ban chua dang nhap");
         }
         return userRepository.findByEmail(principal.getName())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -42,32 +42,45 @@ public class DownloadAccessPolicyService {
             return;
         }
         if (owner == null || !owner.getId().equals(actor.getId())) {
-            throw new AccessDeniedException("KhÃ´ng cÃ³ quyá»n truy cáº­p");
+            throw new AccessDeniedException("Khong co quyen truy cap");
         }
     }
 
-    private void enforceQuota(User user) {
+    public int resolveQuota(User user) {
+        return switch (user.getRole()) {
+            case ADMIN -> 999;
+            case PUBLISHER -> 20;
+            default -> 3;
+        };
+    }
+
+    public int jobsToday(User user) {
         LocalDateTime startOfDay = LocalDateTime.now().truncatedTo(ChronoUnit.DAYS);
-        int jobsToday = jobRepository.countByUserAndCreatedAtAfter(user, startOfDay);
+        return jobRepository.countByUserAndCreatedAtAfter(user, startOfDay);
+    }
+
+    public boolean canUseProxy(User user) {
+        return !"USER".equals(user.getRole().name());
+    }
+
+    public boolean canManageRuntimeSettings(User user) {
+        String role = user.getRole().name();
+        return "ADMIN".equals(role) || "PUBLISHER".equals(role);
+    }
+
+    private void enforceQuota(User user) {
+        int jobsToday = jobsToday(user);
         int maxJobs = resolveQuota(user);
         if (jobsToday >= maxJobs) {
-            throw new BusinessException("ÄÃ£ vÆ°á»£t háº¡n má»©c! Báº¡n chá»‰ cÃ³ thá»ƒ táº£i " + maxJobs + " tá»‡p má»—i ngÃ y.");
+            throw new BusinessException("Da vuot han muc! Ban chi co the tai " + maxJobs + " tep moi ngay.");
         }
     }
 
     private void enforceProxyPolicy(User user, SubmitSourceRequest request) {
         boolean hasProxy = (request.getProxy() != null && !request.getProxy().isBlank())
                 || (request.getProxyRef() != null && !request.getProxyRef().isBlank());
-        if ("USER".equals(user.getRole().name()) && hasProxy) {
-            throw new AccessDeniedException("Chá»‰ tÃ i khoáº£n PUBLISHER má»›i cÃ³ thá»ƒ dÃ¹ng Proxy riÃªng.");
+        if (hasProxy && !canUseProxy(user)) {
+            throw new AccessDeniedException("Chi tai khoan PUBLISHER moi co the dung proxy rieng.");
         }
-    }
-
-    private int resolveQuota(User user) {
-        return switch (user.getRole()) {
-            case ADMIN -> 999;
-            case PUBLISHER -> 20;
-            default -> 3;
-        };
     }
 }

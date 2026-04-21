@@ -4,6 +4,8 @@
 <head>
     <title>S-Platform | Trình tải Video</title>
     <meta charset="UTF-8">
+    <meta name="_csrf" th:if="${_csrf != null}" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:if="${_csrf != null}" th:content="${_csrf.headerName}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -28,7 +30,10 @@
             </div>
             <div class="dl-header-right">
                 <span th:if="${currentUser != null}" class="dl-user-badge" th:text="${currentUser.email}">user@email.com</span>
-                <a th:if="${currentUser != null}" href="/logout" class="dl-logout-btn">Đăng xuất</a>
+                <form th:if="${currentUser != null}" method="post" action="/logout" class="dl-inline-form">
+                    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                    <button type="submit" class="dl-logout-btn dl-logout-submit">Đăng xuất</button>
+                </form>
                 <a th:if="${currentUser == null}" href="/login" class="dl-login-btn">Đăng nhập</a>
                 <a th:if="${currentUser != null && currentUser.role.name() == 'ADMIN'}" href="/admin" class="dl-admin-btn">⚙ Admin</a>
             </div>

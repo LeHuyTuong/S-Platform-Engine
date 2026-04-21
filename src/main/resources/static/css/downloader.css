@@ -79,6 +79,10 @@ body {
     gap: 12px; 
 }
 
+.dl-inline-form {
+    margin: 0;
+}
+
 .dl-user-badge {
     font-size: 0.8rem;
     font-weight: 600;
@@ -102,6 +106,11 @@ body {
     display: flex;
     align-items: center;
     border: 1px solid transparent;
+}
+.dl-logout-submit {
+    background: transparent;
+    cursor: pointer;
+    font-family: 'Outfit', 'Inter', sans-serif;
 }
 .dl-logout-btn { color: var(--muted); border: 1px solid var(--border); }
 .dl-logout-btn:hover { color: var(--danger); border-color: rgba(239,68,68,0.3); }

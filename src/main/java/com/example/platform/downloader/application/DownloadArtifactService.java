@@ -77,7 +77,8 @@ public class DownloadArtifactService {
                                     "name", path.getFileName().toString(),
                                     "path", relative,
                                     "size", String.valueOf(Files.size(path)),
-                                    "contentType", defaultString(Files.probeContentType(path), "application/octet-stream")
+                                    "contentType", defaultString(Files.probeContentType(path), "application/octet-stream"),
+                                    "type", resolveAssetType(path.getFileName().toString()).name()
                             ));
                         } catch (IOException ignored) {
                         }

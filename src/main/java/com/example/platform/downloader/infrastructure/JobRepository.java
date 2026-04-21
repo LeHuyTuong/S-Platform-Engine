@@ -2,8 +2,11 @@ package com.example.platform.downloader.infrastructure;
 
 import com.example.platform.downloader.domain.entity.Job;
 import com.example.platform.downloader.domain.enums.JobState;
+import com.example.platform.downloader.domain.enums.Platform;
 import com.example.platform.modules.user.domain.User;
 import jakarta.transaction.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -22,6 +25,37 @@ public interface JobRepository extends JpaRepository<Job, String> {
 
     List<Job> findByUserOrderByCreatedAtDesc(User user);
 
+    @Query("""
+            select j from Job j
+            left join fetch j.sourceRequest
+            where (:userId is null or j.user.id = :userId)
+              and (:state is null or j.state = :state)
+              and (:status is null or j.status = :status)
+              and (:platform is null or j.platform = :platform)
+            order by j.createdAt desc
+            """,
+            countQuery = """
+            select count(j) from Job j
+            where (:userId is null or j.user.id = :userId)
+              and (:state is null or j.state = :state)
+              and (:status is null or j.status = :status)
+              and (:platform is null or j.platform = :platform)
+            """)
+    Page<Job> searchJobs(@Param("userId") Long userId,
+                         @Param("state") JobState state,
+                         @Param("status") Job.JobStatus status,
+                         @Param("platform") Platform platform,
+                         Pageable pageable);
+
+    @Query("""
+            select j from Job j
+            left join fetch j.sourceRequest
+            where j.sourceRequest.id in :sourceRequestIds
+            order by j.sourceRequest.id asc, j.createdAt asc
+            """)
+    List<Job> findBySourceRequestIdInOrderBySourceRequestIdAscCreatedAtAsc(
+            @Param("sourceRequestIds") Collection<String> sourceRequestIds);
+
     List<Job> findBySourceRequestIdOrderByCreatedAtAsc(String sourceRequestId);
 
     int countByUserAndCreatedAtAfter(User user, LocalDateTime date);
@@ -29,7 +63,7 @@ public interface JobRepository extends JpaRepository<Job, String> {
     long countByStateIn(Collection<JobState> states);
 
     boolean existsByUserIdAndPlatformAndExternalItemIdAndRequestedVariant(
-            Long userId, com.example.platform.downloader.domain.enums.Platform platform, String externalItemId, String requestedVariant);
+            Long userId, Platform platform, String externalItemId, String requestedVariant);
 
     @Query("""
             select j from Job j
