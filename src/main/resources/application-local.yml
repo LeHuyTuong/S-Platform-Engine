@@ -12,5 +12,8 @@ spring:
     database-platform: org.hibernate.dialect.H2Dialect
 
 app:
+  ui:
+    admin-url: http://localhost:5173/admin
+    downloader-url: http://localhost:5173/app/downloader
   worker:
     redis-enabled: false

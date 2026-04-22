@@ -1,35 +1,41 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import { useState, type ComponentProps } from 'react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Sidebar } from './Sidebar';
-import { useState } from 'react';
 
 const meta: Meta<typeof Sidebar> = {
-  title: 'Admin/Layout/Sidebar',
+  title: 'Admin/Layout/ThanhBên',
   component: Sidebar,
   parameters: {
     layout: 'fullscreen',
+  },
+  args: {
+    currentUserEmail: 'admin@test.com',
   },
 };
 
 export default meta;
 type Story = StoryObj<typeof Sidebar>;
 
-const SidebarTemplate = (args: any) => {
+type SidebarStoryProps = ComponentProps<typeof Sidebar>;
+
+const SidebarTemplate = (args: SidebarStoryProps) => {
   const [isCollapsed, setIsCollapsed] = useState(args.isCollapsed);
+
   return (
     <div className="h-screen bg-bg">
-      <Sidebar 
-        {...args} 
-        isCollapsed={isCollapsed} 
-        onToggle={() => setIsCollapsed(!isCollapsed)} 
+      <Sidebar
+        {...args}
+        isCollapsed={isCollapsed}
+        onToggle={() => setIsCollapsed(!isCollapsed)}
       />
     </div>
   );
 };
 
-export const Expanded: Story = {
+export const MởRộng: Story = {
   render: (args) => <SidebarTemplate {...args} isCollapsed={false} />,
 };
 
-export const Collapsed: Story = {
+export const ThuGọn: Story = {
   render: (args) => <SidebarTemplate {...args} isCollapsed={true} />,
 };

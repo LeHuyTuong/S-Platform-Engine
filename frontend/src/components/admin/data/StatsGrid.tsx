@@ -1,38 +1,74 @@
 import React from 'react';
-import { Download, Zap, AlertCircle, Clock } from 'lucide-react';
+import { AlertCircle, CheckCircle2, HardDrive, Users, Video, Wrench } from 'lucide-react';
+import type { AdminDashboardStats } from '../../../api/adminTypes';
 import { Card } from '../atoms/Card';
+import { formatMegabytes } from '../../../features/admin/utils';
 
-const stats = [
-  { label: 'Tổng số tải', value: '1,284,592', change: '+12.5%', icon: Download, color: 'text-primary' },
-  { label: 'Đang tải', value: '42', change: 'Đang chạy', icon: Zap, color: 'text-success' },
-  { label: 'Tỷ lệ lỗi', value: '0.82%', change: '-2.1%', icon: AlertCircle, color: 'text-danger' },
-  { label: 'Thời gian TB', value: '45s', change: '+1s', icon: Clock, color: 'text-warning' },
-];
+interface StatsGridProps {
+  stats: AdminDashboardStats;
+}
 
-export const StatsGrid: React.FC = () => {
+export const StatsGrid: React.FC<StatsGridProps> = ({ stats }) => {
+  const cards = [
+    {
+      label: 'Tổng số job',
+      value: stats.totalJobs.toLocaleString('vi-VN'),
+      helper: 'Toàn hệ thống',
+      icon: Video,
+      accent: 'text-sky-300',
+    },
+    {
+      label: 'Job hoàn thành',
+      value: stats.completedJobs.toLocaleString('vi-VN'),
+      helper: 'Đã xuất file',
+      icon: CheckCircle2,
+      accent: 'text-emerald-300',
+    },
+    {
+      label: 'Job thất bại',
+      value: stats.failedJobs.toLocaleString('vi-VN'),
+      helper: 'Cần rà soát lại',
+      icon: AlertCircle,
+      accent: 'text-rose-300',
+    },
+    {
+      label: 'Người dùng',
+      value: stats.userCount.toLocaleString('vi-VN'),
+      helper: 'Tài khoản đang quản lý',
+      icon: Users,
+      accent: 'text-amber-300',
+    },
+    {
+      label: 'Dung lượng lưu trữ',
+      value: formatMegabytes(stats.diskUsageMb),
+      helper: 'Thư mục tải xuống',
+      icon: HardDrive,
+      accent: 'text-cyan-300',
+    },
+    {
+      label: 'Công cụ hệ thống',
+      value: `${stats.isYtDlpInstalled ? 'yt-dlp OK' : 'yt-dlp thiếu'} / ${stats.isFfmpegInstalled ? 'ffmpeg OK' : 'ffmpeg thiếu'}`,
+      helper: 'Kiểm tra runtime',
+      icon: Wrench,
+      accent: stats.isYtDlpInstalled && stats.isFfmpegInstalled ? 'text-emerald-300' : 'text-rose-300',
+    },
+  ];
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      {stats.map((stat) => (
-        <Card key={stat.label} className="p-0">
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+      {cards.map((card) => (
+        <Card key={card.label} className="p-0">
           <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`p-2.5 rounded-xl bg-white/5 ${stat.color}`}>
-                <stat.icon size={22} />
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div className={`rounded-2xl bg-white/5 p-3 ${card.accent}`}>
+                <card.icon size={20} />
               </div>
-              <span className={`text-[10px] font-black px-2 py-1 rounded-md bg-white/5 ${
-                stat.change.startsWith('+') ? 'text-success' : 'text-muted'
-              }`}>
-                {stat.change}
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                {card.helper}
               </span>
             </div>
-            <h3 className="text-2xl font-black text-text mb-1 tracking-tight">{stat.value}</h3>
-            <p className="text-[11px] font-bold text-muted uppercase tracking-[0.15em]">{stat.label}</p>
-          </div>
-          <div className="h-1 w-full bg-white/5">
-            <div 
-              className={`h-full bg-current ${stat.color} opacity-30`} 
-              style={{ width: '65%' }}
-            />
+            <h3 className="text-lg font-black tracking-tight text-white">{card.value}</h3>
+            <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{card.label}</p>
           </div>
         </Card>
       ))}

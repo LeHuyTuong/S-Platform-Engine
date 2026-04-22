@@ -1,94 +1,150 @@
 import React from 'react';
-import { Play, Pause, Trash2, ExternalLink, ChevronRight } from 'lucide-react';
-import { Badge, type BadgeVariant } from '../atoms/Badge';
+import { ExternalLink, RefreshCcw } from 'lucide-react';
+import type { AdminJob } from '../../../api/adminTypes';
+import { Badge } from '../atoms/Badge';
+import {
+  formatAdminDateTime,
+  getAdminJobStateLabel,
+  getAdminJobStatusLabel,
+  getAdminJobStatusVariant,
+  getPlatformLabel,
+  getRoleLabel,
+  getRoleVariant,
+} from '../../../features/admin/utils';
 
-interface JobData {
-  id: string;
-  title: string;
-  url: string;
-  type: 'Video' | 'Audio';
-  status: 'Running' | 'Completed' | 'Failed' | 'Queued';
-  progress: number;
-  time: string;
+interface DataTableProps {
+  jobs: AdminJob[];
+  loading?: boolean;
+  error?: string | null;
+  resubmittingJobId?: string | null;
+  onResubmit: (jobId: string) => void;
 }
 
-const mockData: JobData[] = [
-  { id: '1', title: 'Sơn Tùng M-TP - Making My Way', url: 'youtube.com/watch?v=...', type: 'Video', status: 'Running', progress: 45, time: '2 phút trước' },
-  { id: '2', title: 'Hoàng Thùy Linh - See Tình', url: 'youtube.com/watch?v=...', type: 'Audio', status: 'Completed', progress: 100, time: '15 phút trước' },
-  { id: '3', title: 'Funny Cats Compilation 2024', url: 'tiktok.com/@user/v/...', type: 'Video', status: 'Failed', progress: 12, time: '1 giờ trước' },
-  { id: '4', title: 'TED Talk: The power of vulnerability', url: 'ted.com/talks/...', type: 'Video', status: 'Queued', progress: 0, time: '3 giờ trước' },
-  { id: '5', title: 'Chill Lo-fi Hip Hop Beats', url: 'youtube.com/live/...', type: 'Audio', status: 'Completed', progress: 100, time: '5 giờ trước' },
-];
+export const DataTable: React.FC<DataTableProps> = ({
+  jobs,
+  loading = false,
+  error = null,
+  resubmittingJobId = null,
+  onResubmit,
+}) => {
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-6 text-sm text-slate-400">
+        Đang tải danh sách công việc quản trị...
+      </div>
+    );
+  }
 
-const statusConfig: Record<string, { label: string; variant: BadgeVariant }> = {
-  Running: { label: 'Đang tải', variant: 'info' },
-  Completed: { label: 'Xong', variant: 'success' },
-  Failed: { label: 'Lỗi', variant: 'danger' },
-  Queued: { label: 'Chờ', variant: 'muted' },
-};
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-6 text-sm text-rose-200">
+        {error}
+      </div>
+    );
+  }
 
-export const DataTable: React.FC = () => {
+  if (jobs.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-sm text-slate-400">
+        Không có job nào khớp với bộ lọc hiện tại.
+      </div>
+    );
+  }
+
   return (
     <div className="w-full overflow-x-auto">
-      <table className="w-full text-left border-collapse">
+      <table className="w-full min-w-[1080px] border-collapse text-left">
         <thead>
           <tr className="border-b border-white/5">
-            <th className="pb-4 px-2 text-[10px] font-black text-muted uppercase tracking-[0.2em] w-12">#</th>
-            <th className="pb-4 px-4 text-[10px] font-black text-muted uppercase tracking-[0.2em]">Thông tin Video</th>
-            <th className="pb-4 px-4 text-[10px] font-black text-muted uppercase tracking-[0.2em]">Định dạng</th>
-            <th className="pb-4 px-4 text-[10px] font-black text-muted uppercase tracking-[0.2em]">Trạng thái</th>
-            <th className="pb-4 px-4 text-[10px] font-black text-muted uppercase tracking-[0.2em]">Tiến độ</th>
-            <th className="pb-4 px-4 text-[10px] font-black text-muted uppercase tracking-[0.2em] text-right">Thao tác</th>
+            <th className="px-4 pb-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Job</th>
+            <th className="px-4 pb-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Chủ sở hữu</th>
+            <th className="px-4 pb-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Nền tảng</th>
+            <th className="px-4 pb-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Status</th>
+            <th className="px-4 pb-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">State</th>
+            <th className="px-4 pb-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Tiến độ</th>
+            <th className="px-4 pb-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Thời điểm</th>
+            <th className="px-4 pb-4 text-right text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Tác vụ</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-white/5">
-          {mockData.map((job, idx) => (
-            <tr key={job.id} className="group hover:bg-white/[0.02] transition-colors">
-              <td className="py-5 px-2 text-xs font-bold text-muted/50">{idx + 1}</td>
-              <td className="py-5 px-4 min-w-[300px]">
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm font-bold text-text truncate max-w-xs">{job.title}</span>
-                  <span className="text-[10px] font-medium text-muted flex items-center gap-1">
-                    {job.url} <ExternalLink size={10} />
-                  </span>
-                </div>
-              </td>
-              <td className="py-5 px-4">
-                <span className="text-xs font-bold text-text">{job.type}</span>
-              </td>
-              <td className="py-5 px-4">
-                <Badge variant={statusConfig[job.status].variant}>
-                  {statusConfig[job.status].label}
-                </Badge>
-              </td>
-              <td className="py-5 px-4 w-40">
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        job.status === 'Failed' ? 'bg-rose-500' : 'bg-primary'
-                      }`}
-                      style={{ width: `${job.progress}%` }}
-                    />
+          {jobs.map((job) => {
+            const title = job.videoTitle || job.playlistTitle || job.url;
+
+            return (
+              <tr key={job.id} className="transition-colors hover:bg-white/[0.02]">
+                <td className="px-4 py-5 align-top">
+                  <div className="flex flex-col gap-2">
+                    <span className="max-w-[280px] truncate text-sm font-semibold text-white">{title}</span>
+                    <span className="text-xs text-slate-400">{job.id}</span>
+                    <a
+                      href={job.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-sky-300 hover:text-sky-200"
+                    >
+                      Mở URL nguồn
+                      <ExternalLink size={12} />
+                    </a>
                   </div>
-                  <span className="text-[10px] font-black text-muted w-8">{job.progress}%</span>
-                </div>
-              </td>
-              <td className="py-5 px-4 text-right">
-                <div className="flex items-center justify-end gap-1">
-                  <button className="p-2 rounded-lg hover:bg-white/5 text-muted hover:text-primary transition-all">
-                    {job.status === 'Running' ? <Pause size={14} /> : <Play size={14} />}
+                </td>
+                <td className="px-4 py-5 align-top">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-sm font-semibold text-white">{job.ownerEmail ?? 'Không rõ'}</span>
+                    <Badge variant={getRoleVariant(job.ownerRole)}>{getRoleLabel(job.ownerRole)}</Badge>
+                  </div>
+                </td>
+                <td className="px-4 py-5 align-top">
+                  <div className="flex flex-col gap-2 text-sm text-white">
+                    <span>{getPlatformLabel(job.platform)}</span>
+                    <span className="text-xs text-slate-400">
+                      {job.downloadType} / {job.format}
+                    </span>
+                  </div>
+                </td>
+                <td className="px-4 py-5 align-top">
+                  <Badge variant={getAdminJobStatusVariant(job.status)}>{getAdminJobStatusLabel(job.status)}</Badge>
+                </td>
+                <td className="px-4 py-5 align-top">
+                  <span className="text-sm text-slate-200">{getAdminJobStateLabel(job.state)}</span>
+                </td>
+                <td className="px-4 py-5 align-top">
+                  <div className="w-40">
+                    <div className="mb-2 flex items-center justify-between text-xs text-slate-400">
+                      <span>{job.progressPercent}%</span>
+                      <span>{job.downloadSpeed || job.eta || 'Chưa có dữ liệu'}</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-white/5">
+                      <div
+                        className={`h-full rounded-full ${
+                          job.status === 'FAILED' ? 'bg-rose-400' : 'bg-sky-400'
+                        }`}
+                        style={{ width: `${Math.max(0, Math.min(job.progressPercent, 100))}%` }}
+                      />
+                    </div>
+                    {job.errorMessage ? (
+                      <p className="mt-2 max-w-[240px] text-xs text-rose-300">{job.errorMessage}</p>
+                    ) : null}
+                  </div>
+                </td>
+                <td className="px-4 py-5 align-top">
+                  <div className="flex flex-col gap-1 text-xs text-slate-400">
+                    <span>{formatAdminDateTime(job.createdAt)}</span>
+                    <span>{job.sourceRequestId ? `Source request: ${job.sourceRequestId}` : 'Không có source request'}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-5 text-right align-top">
+                  <button
+                    onClick={() => onResubmit(job.id)}
+                    disabled={resubmittingJobId === job.id}
+                    className="inline-flex items-center rounded-xl border border-sky-400/20 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-200 transition hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <RefreshCcw size={13} className={resubmittingJobId === job.id ? 'mr-2 animate-spin' : 'mr-2'} />
+                    {resubmittingJobId === job.id ? 'Đang resubmit' : 'Resubmit'}
                   </button>
-                  <button className="p-2 rounded-lg hover:bg-white/5 text-muted hover:text-rose-400 transition-all">
-                    <Trash2 size={14} />
-                  </button>
-                  <button className="p-2 rounded-lg hover:bg-white/5 text-muted hover:text-text transition-all">
-                    <ChevronRight size={14} />
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

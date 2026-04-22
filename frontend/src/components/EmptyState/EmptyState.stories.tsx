@@ -1,9 +1,9 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { EmptyState } from './EmptyState';
 import { FileSearch } from 'lucide-react';
 
 const meta: Meta<typeof EmptyState> = {
-  title: 'Common/EmptyState',
+  title: 'Common/TrạngTháiRỗng',
   component: EmptyState,
   parameters: {
     layout: 'centered',
@@ -14,25 +14,25 @@ const meta: Meta<typeof EmptyState> = {
 export default meta;
 type Story = StoryObj<typeof EmptyState>;
 
-export const Default: Story = {
+export const MặcĐịnh: Story = {
   args: {
     title: 'Chưa có bộ sưu tập nào',
     description: 'Bắt đầu bằng cách tạo bộ sưu tập đầu tiên của bạn để quản lý các video đã tải xuống.',
   },
 };
 
-export const WithAction: Story = {
+export const CóHànhĐộng: Story = {
   args: {
     title: 'Không tìm thấy kết quả',
     description: 'Thử điều chỉnh bộ lọc của bạn hoặc tìm kiếm với từ khóa khác.',
     action: {
-      label: 'Xoá tất cả bộ lọc',
-      onClick: () => alert('Action clicked!'),
+      label: 'Xóa tất cả bộ lọc',
+      onClick: () => alert('Đã bấm hành động'),
     },
   },
 };
 
-export const Loading: Story = {
+export const ĐangTải: Story = {
   args: {
     type: 'loading',
     title: 'Đang tải dữ liệu...',
@@ -40,19 +40,19 @@ export const Loading: Story = {
   },
 };
 
-export const Error: Story = {
+export const BáoLỗi: Story = {
   args: {
     type: 'error',
     title: 'Mất kết nối máy chủ',
-    description: 'Không thể tải được danh sách jobs. Vui lòng kiểm tra lại đường truyền internet của bạn.',
+    description: 'Không thể tải được danh sách job. Vui lòng kiểm tra lại đường truyền internet của bạn.',
     action: {
       label: 'Thử lại ngay',
-      onClick: () => alert('Retry clicked!'),
+      onClick: () => alert('Đã bấm thử lại'),
     },
   },
 };
 
-export const CustomIcon: Story = {
+export const IconTùyChỉnh: Story = {
   args: {
     icon: FileSearch,
     title: 'Thiếu file cấu hình',

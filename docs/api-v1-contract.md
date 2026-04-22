@@ -113,8 +113,8 @@ Submission body:
 ```json
 {
   "sourceUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-  "platform": "YOUTUBE",
-  "sourceType": "DIRECT_URL",
+  "platform": "AUTO",
+  "sourceType": "AUTO",
   "downloadType": "VIDEO",
   "quality": "best",
   "format": "mp4",
@@ -128,6 +128,12 @@ Submission body:
   "watermarkText": null
 }
 ```
+
+Notes:
+
+- `platform` may be omitted, left blank, or sent as `AUTO`. In these cases the backend detects the provider from the URL.
+- `sourceType` may be omitted, left blank, or sent as `AUTO`. In these cases the backend infers `DIRECT_URL`, `PLAYLIST`, or `PROFILE` from the URL pattern.
+- Audio requests should still send `quality: "best"` even when the frontend hides the quality picker.
 
 `SourceRequestResponse`:
 

@@ -33,6 +33,15 @@ import java.util.List;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    private final String adminUiUrl;
+    private final String downloaderUiUrl;
+
+    public SecurityConfig(@Value("${app.ui.admin-url:}") String adminUiUrl,
+                          @Value("${app.ui.downloader-url:/downloader}") String downloaderUiUrl) {
+        this.adminUiUrl = adminUiUrl;
+        this.downloaderUiUrl = downloaderUiUrl;
+    }
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http,
                                            ApiAuthenticationEntryPoint apiAuthenticationEntryPoint,
@@ -61,11 +70,11 @@ public class SecurityConfig {
                         .defaultAccessDeniedHandlerFor(apiAccessDeniedHandler, new AntPathRequestMatcher("/api/v1/**"))
                 )
                 .formLogin(form -> form
-                        .defaultSuccessUrl("/downloader", true)
+                        .successHandler(new RoleAwareAuthenticationSuccessHandler(adminUiUrl, downloaderUiUrl))
                         .permitAll()
                 )
                 .logout(logout -> logout
-                        .logoutSuccessUrl("/downloader")
+                        .logoutSuccessUrl(downloaderUiUrl)
                         .permitAll()
                 );
         return http.build();

@@ -18,7 +18,9 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -26,7 +28,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
         "app.worker.enabled=false",
-        "app.worker.redis-enabled=false"
+        "app.worker.redis-enabled=false",
+        "app.ui.admin-url=http://localhost:5173/admin",
+        "app.ui.downloader-url=http://localhost:5173/app/downloader"
 })
 class SecurityIntegrationTest {
 
@@ -77,5 +81,25 @@ class SecurityIntegrationTest {
         assertThat(body).doesNotContain("passwordHash");
         assertThat(body).doesNotContain("telegramChatId");
         assertThat(body).doesNotContain("\"user\"");
+    }
+
+    @Test
+    void formLoginRedirectsAdminToAdminUi() throws Exception {
+        mockMvc.perform(post("/login")
+                        .with(csrf())
+                        .param("username", "admin@test.com")
+                        .param("password", "admin"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrlPattern("http://localhost:5173/admin"));
+    }
+
+    @Test
+    void formLoginRedirectsPublisherToDownloaderUi() throws Exception {
+        mockMvc.perform(post("/login")
+                        .with(csrf())
+                        .param("username", "pub@test.com")
+                        .param("password", "pub"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrlPattern("http://localhost:5173/app/downloader"));
     }
 }

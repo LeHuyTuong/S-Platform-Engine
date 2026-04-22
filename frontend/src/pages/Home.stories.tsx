@@ -1,8 +1,8 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import Home from './Home';
 
 const meta: Meta<typeof Home> = {
-  title: 'Pages/Home',
+  title: 'Trang/Home',
   component: Home,
   parameters: {
     layout: 'fullscreen',
@@ -12,9 +12,9 @@ const meta: Meta<typeof Home> = {
 export default meta;
 type Story = StoryObj<typeof Home>;
 
-export const Desktop: Story = {};
+export const MànHìnhDesktop: Story = {};
 
-export const Mobile: Story = {
+export const MànHìnhMobile: Story = {
   parameters: {
     viewport: {
       defaultViewport: 'mobile1',

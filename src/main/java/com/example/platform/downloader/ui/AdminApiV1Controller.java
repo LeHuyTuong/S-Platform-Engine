@@ -7,6 +7,7 @@ import com.example.platform.downloader.domain.enums.JobState;
 import com.example.platform.downloader.domain.enums.Platform;
 import com.example.platform.downloader.infrastructure.AppSettings;
 import com.example.platform.downloader.infrastructure.JobRepository;
+import com.example.platform.downloader.ui.dto.AdminJobSummaryResponse;
 import com.example.platform.downloader.ui.dto.JobStatusResponse;
 import com.example.platform.kernel.exception.BusinessException;
 import com.example.platform.kernel.exception.ResourceNotFoundException;
@@ -82,15 +83,15 @@ public class AdminApiV1Controller {
     }
 
     @GetMapping("/jobs")
-    public RestResponse<List<JobStatusResponse>> listJobs(@RequestParam(defaultValue = "0") int page,
-                                                          @RequestParam(defaultValue = "20") int size,
-                                                          @RequestParam(required = false) JobState state,
-                                                          @RequestParam(required = false) Job.JobStatus status,
-                                                          @RequestParam(required = false) Platform platform) {
+    public RestResponse<List<AdminJobSummaryResponse>> listJobs(@RequestParam(defaultValue = "0") int page,
+                                                                @RequestParam(defaultValue = "20") int size,
+                                                                @RequestParam(required = false) JobState state,
+                                                                @RequestParam(required = false) Job.JobStatus status,
+                                                                @RequestParam(required = false) Platform platform) {
         Pageable pageable = ApiPaginationSupport.pageRequest(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Job> results = jobRepository.searchJobs(null, state, status, platform, pageable);
-        RestResponse<List<JobStatusResponse>> response = RestResponse.ok(
-                results.getContent().stream().map(this::toJobSummaryResponse).toList()
+        RestResponse<List<AdminJobSummaryResponse>> response = RestResponse.ok(
+                results.getContent().stream().map(this::toAdminJobSummaryResponse).toList()
         );
         response.setMeta(ApiPaginationSupport.pageMeta(results));
         return response;
@@ -213,5 +214,33 @@ public class AdminApiV1Controller {
 
     private JobStatusResponse toJobSummaryResponse(Job job) {
         return dtoMapper.toJobStatus(job, List.of());
+    }
+
+    private AdminJobSummaryResponse toAdminJobSummaryResponse(Job job) {
+        JobStatusResponse jobStatus = dtoMapper.toJobStatus(job, List.of());
+        AdminJobSummaryResponse response = new AdminJobSummaryResponse();
+        response.setId(jobStatus.getId());
+        response.setSourceRequestId(jobStatus.getSourceRequestId());
+        response.setStatus(jobStatus.getStatus());
+        response.setState(jobStatus.getState());
+        response.setPlatform(jobStatus.getPlatform());
+        response.setSourceType(jobStatus.getSourceType());
+        response.setUrl(jobStatus.getUrl());
+        response.setVideoTitle(jobStatus.getVideoTitle());
+        response.setPlaylistTitle(jobStatus.getPlaylistTitle());
+        response.setTotalItems(jobStatus.getTotalItems());
+        response.setCurrentItem(jobStatus.getCurrentItem());
+        response.setDownloadType(jobStatus.getDownloadType());
+        response.setQuality(jobStatus.getQuality());
+        response.setFormat(jobStatus.getFormat());
+        response.setErrorMessage(jobStatus.getErrorMessage());
+        response.setDownloadSpeed(jobStatus.getDownloadSpeed());
+        response.setEta(jobStatus.getEta());
+        response.setProgressPercent(jobStatus.getProgressPercent());
+        response.setCreatedAt(jobStatus.getCreatedAt());
+        response.setLogs(jobStatus.getLogs());
+        response.setOwnerEmail(job.getUser() != null ? job.getUser().getEmail() : null);
+        response.setOwnerRole(job.getUser() != null ? job.getUser().getRole().name() : null);
+        return response;
     }
 }

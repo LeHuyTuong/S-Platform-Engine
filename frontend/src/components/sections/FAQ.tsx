@@ -6,24 +6,29 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const faqData = [
   {
-    question: 'Tôi có thể tải video từ những trang web nào?',
-    answer: 'S-Platform hỗ trợ hơn 1000+ website bao gồm các mạng xã hội phổ biến nhất như YouTube, TikTok (có/không có watermark), Facebook, Instagram, Twitter, Twitch, SoundCloud và nhiều trang tin tức khác.',
+    question: 'Tôi có thể tải video từ những nguồn nào?',
+    answer:
+      'Frontend hiện hỗ trợ các nền tảng đã được backend map rõ như YouTube, TikTok, Facebook và Instagram.',
   },
   {
-    question: 'S-Platform có miễn phí không?',
-    answer: 'Có, phiên bản web hiện tại hoàn toàn miễn phí cho người dùng cá nhân. Chúng tôi không yêu cầu bạn phải đăng ký tài khoản hay trả bất kỳ khoản phí nào để tải các video tiêu chuẩn.',
+    question: 'Tại sao có yêu cầu nguồn nhưng chưa thấy job?',
+    answer:
+      'Với playlist hoặc profile, hệ thống cần worker phân giải nguồn trước khi tạo ra một hay nhiều job cụ thể.',
   },
   {
-    question: 'Làm thế nào để tải video ở chất lượng 4K?',
-    answer: 'Hệ thống sẽ tự động quét các định dạng có sẵn của URL bạn cung cấp. Nếu video gốc hỗ trợ 4K/8K, bạn sẽ thấy tùy chọn tương ứng trong danh sách chọn chất lượng trước khi nhấn nút "Tải về".',
+    question: 'Khi nào nút tải file xuất hiện?',
+    answer:
+      'Khi job ở trạng thái hoàn tất và endpoint `/api/v1/jobs/{id}/files` trả về ít nhất một file có `downloadUrl`.',
   },
   {
-    question: 'Tôi có thể tải nhiều video cùng lúc không?',
-    answer: 'Tính năng tải hàng loạt (Batch Download) hiện khả dụng cho Playlist YouTube hoặc thông qua việc dán danh sách URL trong giao diện ứng dụng. Hệ thống sẽ xếp chúng vào hàng đợi và xử lý lần lượt.',
+    question: 'File tải về sẽ nằm ở đâu?',
+    answer:
+      'Frontend chỉ kích hoạt tải xuống trong browser. Vị trí lưu file do trình duyệt quyết định, thường là thư mục Downloads mặc định.',
   },
   {
-    question: 'Mọi thông tin tải xuống có được bảo mật không?',
-    answer: 'Tuyệt đối an toàn. Chúng tôi không lưu trữ nội dung video của bạn dài hạn và không theo dõi lịch sử tải xuống cá nhân. Hệ thống tự động xóa dữ liệu sau 30 phút để bảo vệ quyền riêng tư.',
+    question: 'Vì sao tôi thấy khác nhau giữa :5173 và :8080?',
+    answer:
+      'Trong môi trường local, `:5173` là frontend mới. Backend `:8080` hiện được cấu hình redirect về giao diện mới để tránh rơi vào màn hình cũ.',
   },
 ];
 
@@ -31,39 +36,37 @@ export const FAQ: React.FC = () => {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (
-    <section id="faq" className="py-24 sm:py-32 bg-white/[0.01]">
+    <section id="faq" className="bg-white/[0.01] py-24 sm:py-32">
       <Container>
-        <SectionHeader 
-          label="Giải đáp thắc mắc" 
+        <SectionHeader
+          label="Giải đáp thắc mắc"
           title="Những câu hỏi thường gặp"
-          description="Tìm câu trả lời nhanh nhất cho các thắc mắc phổ biến về dịch vụ của chúng tôi."
+          description="Các câu hỏi dưới đây tập trung vào luồng frontend mới và cách nó làm việc với backend hiện tại."
         />
 
-        <div className="max-w-3xl mx-auto space-y-4">
+        <div className="mx-auto max-w-3xl space-y-4">
           {faqData.map((item, index) => {
             const isOpen = openIndex === index;
             return (
-              <div 
+              <div
                 key={index}
-                className={`border border-white/5 rounded-2xl overflow-hidden transition-all duration-300 ${
-                  isOpen ? 'bg-white/[0.04] border-primary/20' : 'bg-white/[0.02] hover:bg-white/[0.04]'
+                className={`overflow-hidden rounded-2xl border border-white/5 transition-all duration-300 ${
+                  isOpen ? 'border-primary/20 bg-white/[0.04]' : 'bg-white/[0.02] hover:bg-white/[0.04]'
                 }`}
               >
                 <button
                   onClick={() => setOpenIndex(isOpen ? null : index)}
-                  className="flex items-center justify-between w-full p-6 text-left"
+                  className="flex w-full items-center justify-between p-6 text-left"
                   aria-expanded={isOpen}
                 >
-                  <span className="text-base sm:text-lg font-bold text-text pr-8">
-                    {item.question}
-                  </span>
+                  <span className="pr-8 text-base font-bold text-text sm:text-lg">{item.question}</span>
                   <div className={`transition-transform duration-300 ${isOpen ? 'rotate-180 text-primary' : 'text-muted'}`}>
                     <ChevronDown size={20} />
                   </div>
                 </button>
 
                 <AnimatePresence>
-                  {isOpen && (
+                  {isOpen ? (
                     <motion.div
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
@@ -71,13 +74,11 @@ export const FAQ: React.FC = () => {
                       transition={{ duration: 0.3, ease: 'easeInOut' }}
                     >
                       <div className="px-6 pb-6 pt-0">
-                        <div className="h-[1px] w-full bg-white/5 mb-6" />
-                        <p className="text-sm sm:text-base text-muted font-medium leading-relaxed">
-                          {item.answer}
-                        </p>
+                        <div className="mb-6 h-[1px] w-full bg-white/5" />
+                        <p className="text-sm leading-relaxed font-medium text-muted sm:text-base">{item.answer}</p>
                       </div>
                     </motion.div>
-                  )}
+                  ) : null}
                 </AnimatePresence>
               </div>
             );

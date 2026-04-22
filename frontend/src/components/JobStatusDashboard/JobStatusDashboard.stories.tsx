@@ -1,9 +1,9 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { JobStatusDashboard } from './JobStatusDashboard';
 import type { Job } from './types';
 
 const meta: Meta<typeof JobStatusDashboard> = {
-  title: 'Components/JobStatusDashboard',
+  title: 'Component/BảngĐiềuKhiểnTrạngTháiJob',
   component: JobStatusDashboard,
   parameters: {
     layout: 'centered',
@@ -31,36 +31,36 @@ const mockBase: Job = {
     '[youtube] v=example: Downloading android player API JSON',
     '[info] v=example: Downloading 1 format(s): 137+140',
     '[download] Destination: Making My Way.mp4',
-    '[download]  45.0% of  50.23MiB at  2.5MiB/s ETA 00:02:15'
+    '[download]  45.0% of  50.23MiB at  2.5MiB/s ETA 00:02:15',
   ],
 };
 
-export const Running: Story = {
+export const ĐangChạy: Story = {
   args: {
     job: mockBase,
   },
 };
 
-export const Completed: Story = {
+export const HoànTất: Story = {
   args: {
     job: {
       ...mockBase,
       state: 'COMPLETED',
       progressPercent: 100,
-      downloadSpeed: 'Hoàn thành ✅',
-      eta: '—',
+      downloadSpeed: 'Hoàn thành',
+      eta: '-',
       logs: [
         ...mockBase.logs,
         '[download] 100% of 50.23MiB in 00:00:45',
         'Finished downloading Making My Way.mp4',
         '[WATERMARK] Đang thêm watermark "@SP-Platform"...',
-        '[WATERMARK] Đã hoàn thành thêm watermark.'
+        '[WATERMARK] Đã hoàn thành thêm watermark.',
       ],
     },
   },
 };
 
-export const Failed: Story = {
+export const ThấtBại: Story = {
   args: {
     job: {
       ...mockBase,
@@ -68,13 +68,13 @@ export const Failed: Story = {
       errorMessage: 'ERROR: Sign in to confirm you are not a bot. This helps protect our community.',
       logs: [
         ...mockBase.logs,
-        'ERROR: Sign in to confirm you are not a bot. This helps protect our community.'
+        'ERROR: Sign in to confirm you are not a bot. This helps protect our community.',
       ],
     },
   },
 };
 
-export const Playlist: Story = {
+export const DạngPlaylist: Story = {
   args: {
     job: {
       ...mockBase,
@@ -86,7 +86,7 @@ export const Playlist: Story = {
   },
 };
 
-export const Empty: Story = {
+export const Trống: Story = {
   args: {
     job: null,
   },

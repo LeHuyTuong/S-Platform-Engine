@@ -1,8 +1,8 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Features } from './Features';
 
 const meta: Meta<typeof Features> = {
-  title: 'Sections/Features',
+  title: 'Section/TínhNăng',
   component: Features,
   parameters: {
     layout: 'fullscreen',
@@ -12,4 +12,4 @@ const meta: Meta<typeof Features> = {
 export default meta;
 type Story = StoryObj<typeof Features>;
 
-export const Default: Story = {};
+export const MặcĐịnh: Story = {};

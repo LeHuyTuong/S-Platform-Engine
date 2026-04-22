@@ -149,6 +149,17 @@ class ApiV1SecurityIntegrationTest {
     }
 
     @Test
+    void adminCanReadAdminJobsWithOwnerFields() throws Exception {
+        MockHttpSession session = loginAs("admin@test.com", "admin");
+
+        mockMvc.perform(get("/api/v1/admin/jobs").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].ownerEmail").isString())
+                .andExpect(jsonPath("$.data[0].ownerRole").isString());
+    }
+
+    @Test
     void csrfEndpointIssuesTokenForFrontendLoginFlow() throws Exception {
         mockMvc.perform(get("/api/v1/auth/csrf"))
                 .andExpect(status().isOk())

@@ -20,6 +20,7 @@ import com.example.platform.kernel.exception.ResourceNotFoundException;
 import com.example.platform.kernel.ui.RestResponse;
 import com.example.platform.modules.user.domain.User;
 import com.example.platform.modules.user.infrastructure.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -56,6 +57,7 @@ public class DownloadController {
     private final SourceRequestService sourceRequestService;
     private final DownloaderDtoMapper dtoMapper;
     private final UserRepository userRepository;
+    private final String downloaderUiUrl;
 
     public DownloadController(DownloaderService downloaderService,
                               DownloadArtifactService downloadArtifactService,
@@ -65,7 +67,8 @@ public class DownloadController {
                               SourceRequestRepository sourceRequestRepository,
                               SourceRequestService sourceRequestService,
                               DownloaderDtoMapper dtoMapper,
-                              UserRepository userRepository) {
+                              UserRepository userRepository,
+                              @Value("${app.ui.downloader-url:}") String downloaderUiUrl) {
         this.downloaderService = downloaderService;
         this.downloadArtifactService = downloadArtifactService;
         this.accessPolicyService = accessPolicyService;
@@ -75,10 +78,14 @@ public class DownloadController {
         this.sourceRequestService = sourceRequestService;
         this.dtoMapper = dtoMapper;
         this.userRepository = userRepository;
+        this.downloaderUiUrl = downloaderUiUrl;
     }
 
     @GetMapping
     public String index(Model model, Principal principal) {
+        if (downloaderUiUrl != null && !downloaderUiUrl.isBlank() && !"/downloader".equals(downloaderUiUrl)) {
+            return "redirect:" + downloaderUiUrl;
+        }
         if (principal != null) {
             userRepository.findByEmail(principal.getName()).ifPresentOrElse(user -> {
                 model.addAttribute("jobs", jobRepository.findByUserOrderByCreatedAtDesc(user));

@@ -1,20 +1,30 @@
-export type JobState = 'ACCEPTED' | 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'BLOCKED' | 'QUEUED' | 'RETRY_WAIT';
+export type JobState =
+  | 'ACCEPTED'
+  | 'RESOLVING'
+  | 'PENDING'
+  | 'QUEUED'
+  | 'RUNNING'
+  | 'POST_PROCESSING'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'BLOCKED'
+  | 'RETRY_WAIT';
 
 export interface Job {
   id: string;
   url: string;
-  videoTitle?: string;
-  playlistTitle?: string;
+  videoTitle?: string | null;
+  playlistTitle?: string | null;
   downloadType: 'VIDEO' | 'AUDIO';
   format: string;
   state: JobState;
-  status?: string; // Legacy field
+  status?: string | null;
   progressPercent: number;
-  downloadSpeed?: string;
-  speedHistory?: (number | null)[];
-  eta?: string;
-  currentItem?: number;
-  totalItems?: number;
-  errorMessage?: string;
+  downloadSpeed?: string | null;
+  speedHistory?: Array<number | null>;
+  eta?: string | null;
+  currentItem?: number | null;
+  totalItems?: number | null;
+  errorMessage?: string | null;
   logs: string[];
 }

@@ -1,51 +1,48 @@
-import React from 'react';
-import { Container } from '../common/Container';
-import { Button } from '../common/Button';
-import { Download, ArrowRight } from 'lucide-react';
+import { ArrowRight, Download } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Button } from '../common/Button';
+import { Container } from '../common/Container';
 
-export const FinalCTA: React.FC = () => {
+export const FinalCTA = () => {
   return (
-    <section className="py-24 relative overflow-hidden">
-      {/* Background Decor */}
-      <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
-      <div className="absolute bottom-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/10 blur-[140px] rounded-full pointer-events-none"></div>
+    <section className="relative overflow-hidden py-24">
+      <div className="absolute left-0 top-0 h-[1px] w-full bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+      <div className="pointer-events-none absolute bottom-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[140px]" />
 
       <Container>
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="relative px-8 py-16 sm:py-24 bg-card-bg border border-white/5 rounded-[48px] overflow-hidden text-center z-10"
+          className="relative z-10 overflow-hidden rounded-[48px] border border-white/5 bg-card-bg px-8 py-16 text-center sm:py-24"
         >
-          {/* Animated Glow in background */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[200px] h-[200px] bg-primary/20 blur-[60px] rounded-full"></div>
+          <div className="absolute left-1/2 top-0 h-[200px] w-[200px] -translate-x-1/2 rounded-full bg-primary/20 blur-[60px]" />
 
           <div className="relative z-10">
-            <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-8">
-              <Download className="text-primary w-8 h-8" />
+            <div className="mx-auto mb-8 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
+              <Download className="h-8 w-8 text-primary" />
             </div>
-            
-            <h2 className="text-3xl sm:text-5xl font-black text-text mb-6 tracking-tight leading-tight max-w-2xl mx-auto">
-              Sẵn sàng trải nghiệm sức mạnh của S-Platform?
+
+            <h2 className="mx-auto mb-6 max-w-2xl text-3xl leading-tight font-black tracking-tight text-text sm:text-5xl">
+              Sẵn sàng chuyển từ landing page sang không gian tải video thật?
             </h2>
-            
-            <p className="text-base sm:text-lg text-muted font-medium mb-10 max-w-xl mx-auto leading-relaxed">
-              Bắt đầu tải những video yêu thích của bạn ngay bây giờ với tốc độ không giới hạn và hoàn toàn miễn phí.
+
+            <p className="mx-auto mb-10 max-w-xl text-base leading-relaxed font-medium text-muted sm:text-lg">
+              Mở giao diện mới để tạo yêu cầu nguồn, theo dõi job của bạn và tải file khi pipeline hoàn tất.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button size="lg" className="w-full sm:w-auto h-14 px-10">
-                Bắt đầu ngay miễn phí <ArrowRight className="ml-2 w-5 h-5" />
+            <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
+              <Button size="lg" className="h-14 w-full px-10 sm:w-auto" href="/app/downloader">
+                Mở không gian downloader <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
-              <Button variant="secondary" size="lg" className="w-full sm:w-auto h-14 px-10">
-                Tìm hiểu thêm
+              <Button variant="secondary" size="lg" className="h-14 w-full px-10 sm:w-auto" href="/login">
+                Đăng nhập bằng backend hiện tại
               </Button>
             </div>
 
-            <p className="mt-8 text-[11px] font-bold text-muted uppercase tracking-[0.2em]">
-              Không cần đăng ký • Không cần thẻ tín dụng • Tải ngay
+            <p className="mt-8 text-[11px] font-bold tracking-[0.2em] text-muted uppercase">
+              Không thêm thư viện query • Không dùng dữ liệu giả • Chỉ dùng contract thật
             </p>
           </div>
         </motion.div>

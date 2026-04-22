@@ -36,6 +36,7 @@ public class AdminController {
     private final UserRepository userRepository;
     private final AppSettings appSettings;
     private final SourceRequestService sourceRequestService;
+    private final String adminUiUrl;
     private final String downloadDir;
     private final String ytDlpPath;
     private final String ffmpegPath;
@@ -44,6 +45,7 @@ public class AdminController {
                            UserRepository userRepository,
                            AppSettings appSettings,
                            SourceRequestService sourceRequestService,
+                           @Value("${app.ui.admin-url:}") String adminUiUrl,
                            @Value("${app.downloader.output-dir:downloads}") String downloadDir,
                            @Value("${app.downloader.yt-dlp-path:yt-dlp}") String ytDlpPath,
                            @Value("${app.downloader.ffmpeg-path:ffmpeg}") String ffmpegPath) {
@@ -51,6 +53,7 @@ public class AdminController {
         this.userRepository = userRepository;
         this.appSettings = appSettings;
         this.sourceRequestService = sourceRequestService;
+        this.adminUiUrl = adminUiUrl;
         this.downloadDir = downloadDir;
         this.ytDlpPath = ytDlpPath;
         this.ffmpegPath = ffmpegPath;
@@ -58,6 +61,9 @@ public class AdminController {
 
     @GetMapping
     public String dashboard(Model model) {
+        if (adminUiUrl != null && !adminUiUrl.isBlank() && !"/admin".equals(adminUiUrl)) {
+            return "redirect:" + adminUiUrl;
+        }
         model.addAttribute("jobs", jobRepository.findAllByOrderByCreatedAtDesc());
         model.addAttribute("users", userRepository.findAll());
         model.addAttribute("settings", appSettings);
