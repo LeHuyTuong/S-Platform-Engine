@@ -26,6 +26,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     sleepRequests: 0,
     retries: 0,
     maxFileSizeMb: 0,
+    telegramBotToken: '',
+    telegramChatId: '',
+    googleDriveServiceAccountJson: '',
+    googleDriveFolderId: '',
+    baseUrl: '',
   });
 
   React.useEffect(() => {
@@ -39,6 +44,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       sleepRequests: settings.sleepRequests,
       retries: settings.retries,
       maxFileSizeMb: settings.maxFileSizeMb,
+      telegramBotToken: '',
+      telegramChatId: settings.telegramChatId || '',
+      googleDriveServiceAccountJson: '',
+      googleDriveFolderId: settings.googleDriveFolderId || '',
+      baseUrl: settings.baseUrl || '',
     });
   }, [settings]);
 
@@ -128,6 +138,59 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             className="h-11 w-full rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none transition-colors hover:border-sky-400/40 focus:border-sky-400/40"
           />
         </label>
+      </div>
+
+      <div className="space-y-4 pt-4 border-t border-white/5">
+        <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Tích hợp mặc định (Toàn hệ thống)</h4>
+        
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <label className="space-y-2">
+            <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Telegram Bot Token</span>
+            <input
+              type="password"
+              placeholder="Nhập token mới để cập nhật..."
+              value={formValues.telegramBotToken}
+              onChange={(event) =>
+                setFormValues((previous) => ({
+                  ...previous,
+                  telegramBotToken: event.target.value,
+                }))
+              }
+              className="h-11 w-full rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none transition-colors hover:border-sky-400/40 focus:border-sky-400/40"
+            />
+          </label>
+
+          <label className="space-y-2">
+            <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Telegram Chat ID</span>
+            <input
+              type="text"
+              value={formValues.telegramChatId}
+              onChange={(event) =>
+                setFormValues((previous) => ({
+                  ...previous,
+                  telegramChatId: event.target.value,
+                }))
+              }
+              className="h-11 w-full rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none transition-colors hover:border-sky-400/40 focus:border-sky-400/40"
+            />
+          </label>
+
+          <label className="space-y-2 md:col-span-2">
+            <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Base URL (Dùng cho thông báo)</span>
+            <input
+              type="text"
+              placeholder="https://your-domain.com"
+              value={formValues.baseUrl}
+              onChange={(event) =>
+                setFormValues((previous) => ({
+                  ...previous,
+                  baseUrl: event.target.value,
+                }))
+              }
+              className="h-11 w-full rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none transition-colors hover:border-sky-400/40 focus:border-sky-400/40"
+            />
+          </label>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4 text-sm text-slate-300">

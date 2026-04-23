@@ -134,3 +134,45 @@ export const LỗiTảiDữLiệu: Story = {
     onSelectJob: () => undefined,
   },
 };
+
+export const NhiêuDữLiệu: Story = {
+  args: {
+    requests: Array.from({ length: 15 }).map((_, i) => ({
+      ...requestWithJobs,
+      id: `src_many_${i}`,
+      sourceUrl: `https://www.youtube.com/watch?v=video_${i}`,
+      createdAt: new Date(Date.now() - i * 3600000).toISOString(),
+      jobs: i % 2 === 0 ? requestWithJobs.jobs : [],
+    })),
+    loading: false,
+    refreshing: false,
+    error: null,
+    selectedJobId: null,
+    onRetry: () => undefined,
+    onSelectJob: () => undefined,
+  },
+};
+
+export const KhôngTìmThấyKếtQuả: Story = {
+  args: {
+    requests: [requestWithJobs, requestResolving],
+    loading: false,
+    refreshing: false,
+    error: null,
+    selectedJobId: null,
+    onRetry: () => undefined,
+    onSelectJob: () => undefined,
+  },
+  render: (args) => {
+    return (
+      <div className="min-h-screen bg-bg p-6 text-text">
+        <div className="mx-auto max-w-4xl">
+          {/* Simulate search query by wrapping or just relying on internal state if we exposed it, 
+              but since it's internal, we'll just show the component and user can type. */}
+          <SourceRequestList {...args} />
+          <p className="mt-4 text-xs text-muted italic">* Nhập "abc" vào ô tìm kiếm để thấy trạng thái trống.</p>
+        </div>
+      </div>
+    );
+  }
+};

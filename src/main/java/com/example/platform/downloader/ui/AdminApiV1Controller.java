@@ -113,6 +113,9 @@ public class AdminApiV1Controller {
         result.put("sleepRequests", appSettings.getSleepRequests());
         result.put("retries", appSettings.getRetries());
         result.put("maxFileSizeMb", appSettings.getMaxFileSizeMb());
+        result.put("telegramChatId", appSettings.getTelegramChatId());
+        result.put("googleDriveFolderId", appSettings.getGoogleDriveFolderId());
+        result.put("baseUrl", appSettings.getBaseUrl());
         result.put("diskUsageMb", getDiskUsageMb());
         return RestResponse.ok(result);
     }
@@ -134,6 +137,18 @@ public class AdminApiV1Controller {
             }
             if (body.containsKey("maxFileSizeMb")) {
                 appSettings.setMaxFileSizeMb(Long.parseLong(body.get("maxFileSizeMb")));
+            }
+            if (body.containsKey("telegramBotToken")) {
+                appSettings.setTelegramBotToken(body.get("telegramBotToken"));
+            }
+            if (body.containsKey("telegramChatId")) {
+                appSettings.setTelegramChatId(body.get("telegramChatId"));
+            }
+            if (body.containsKey("googleDriveFolderId")) {
+                appSettings.setGoogleDriveFolderId(body.get("googleDriveFolderId"));
+            }
+            if (body.containsKey("baseUrl")) {
+                appSettings.setBaseUrl(body.get("baseUrl"));
             }
             return RestResponse.ok(null, "Settings updated");
         } catch (NumberFormatException e) {

@@ -5,7 +5,7 @@ import type { Job as DashboardJob } from '../../../components/JobStatusDashboard
 import { Button } from '../../../components/common/Button';
 import type { Job, JobFile } from '../../../api/downloaderTypes';
 import type { ApiClientError } from '../../../api/types';
-import { formatFileSize } from '../utils';
+import { formatFileSize, cleanVideoTitle } from '../utils';
 
 interface Props {
   job: Job | null;
@@ -27,8 +27,8 @@ function toDashboardJob(job: Job | null): DashboardJob | null {
   return {
     id: job.id,
     url: job.url,
-    videoTitle: job.videoTitle,
-    playlistTitle: job.playlistTitle,
+    videoTitle: cleanVideoTitle(job.videoTitle),
+    playlistTitle: cleanVideoTitle(job.playlistTitle),
     downloadType: job.downloadType,
     format: job.format,
     state: job.state,
@@ -195,7 +195,7 @@ export const JobDetailPanel = ({
                   className="flex flex-col gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0">
-                    <div className="break-all text-sm font-semibold text-text">{file.name}</div>
+                    <div className="break-all text-sm font-semibold text-text">{cleanVideoTitle(file.name)}</div>
                     <div className="mt-1 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted">
                       <span>{file.type || 'Không rõ'}</span>
                       <span>{file.contentType || 'content-type chưa có'}</span>

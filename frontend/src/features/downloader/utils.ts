@@ -120,3 +120,14 @@ export function getStateTone(state: JobState | SourceRequestState) {
 
   return 'border-primary/20 bg-primary/10 text-primary';
 }
+
+export function cleanVideoTitle(title: string | null | undefined): string {
+  if (!title) return '';
+
+  return title
+    .replace(/^(NA|Unknown|N\/A)\s*-\s*/i, '') // Remove NA - or Unknown - prefixes
+    .replace(/\s*\([^)]*\)/g, '') // Remove (Official Video), (4K Remaster), etc.
+    .replace(/\s*\[[^\]]*\]/g, '') // Remove [dQw4w9WgXcQ], etc.
+    .replace(/\.[a-z]{2,3}(\.[a-z]{2,3})?$/i, '') // Remove .en or .en.vtt or .mp4
+    .trim();
+}

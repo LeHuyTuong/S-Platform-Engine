@@ -129,7 +129,7 @@ public class SecurityConfig {
             if (userRepository.count() == 0) {
                 userRepository.save(new User("admin@test.com", passwordEncoder.encode("admin"), Role.ADMIN, true));
                 userRepository.save(new User("pub@test.com", passwordEncoder.encode("pub"), Role.PUBLISHER, true));
-                userRepository.save(new User("user@test.com", passwordEncoder.encode("user"), Role.USER, true));
+                userRepository.save(new User("user@test.com", passwordEncoder.encode("user"), Role.PUBLISHER, true));
             }
         };
     }

@@ -12,10 +12,13 @@ import { JobDetailPanel } from './components/JobDetailPanel';
 import { JobsList } from './components/JobsList';
 import { SourceRequestForm } from './components/SourceRequestForm';
 import { SourceRequestList } from './components/SourceRequestList';
+import { TelegramConfigCard } from './components/TelegramConfigCard';
+import { GoogleDriveConfigCard } from './components/GoogleDriveConfigCard';
 import { useAuthSession } from './hooks/useAuthSession';
 import { useJobDetail } from './hooks/useJobDetail';
 import { useJobs } from './hooks/useJobs';
 import { useSourceRequests } from './hooks/useSourceRequests';
+import { logout } from '../../api/auth';
 
 interface AuthenticatedWorkspaceProps {
   session: AuthSession;
@@ -212,6 +215,20 @@ const AuthenticatedWorkspace = ({ session }: AuthenticatedWorkspaceProps) => {
           />
         </div>
       </section>
+
+      {session.canManageRuntimeSettings && (
+        <section className="space-y-6 pt-6">
+          <div className="flex items-center gap-3 px-2">
+            <h2 className="text-xl font-black tracking-tight text-white uppercase">Cấu hình & Tích hợp</h2>
+            <div className="h-px flex-1 bg-gradient-to-r from-white/10 to-transparent" />
+          </div>
+          
+          <div className="grid gap-6 lg:grid-cols-2">
+            <TelegramConfigCard />
+            <GoogleDriveConfigCard />
+          </div>
+        </section>
+      )}
     </>
   );
 };
@@ -219,6 +236,18 @@ const AuthenticatedWorkspace = ({ session }: AuthenticatedWorkspaceProps) => {
 export const DownloaderWorkspace = () => {
   const { session, loading: sessionLoading, error: sessionError, refetch: refetchSession } = useAuthSession();
   const isAuthenticated = Boolean(session?.authenticated);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    try {
+      await logout();
+    } catch {
+      // ignore
+    } finally {
+      window.location.assign('/');
+    }
+  }
 
 
   return (
@@ -236,9 +265,7 @@ export const DownloaderWorkspace = () => {
               <span className="text-text">Tải video</span>
             </nav>
             <h1 className="mt-3 text-3xl font-black tracking-tight text-text sm:text-4xl">Bàn làm việc Tải Video</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-              Dán link video từ các nền tảng để bắt đầu quá trình xử lý và tải xuống tự động.
-            </p>
+
           </div>
 
           <div className="flex items-center gap-3">
@@ -251,12 +278,13 @@ export const DownloaderWorkspace = () => {
                 <div className="hidden text-right md:block">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-bold text-text">{session.email}</p>
-                    <a
-                      href="/login"
+                    <button
+                      onClick={() => void handleLogout()}
+                      disabled={loggingOut}
                       className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tight"
                     >
-                      Đổi tài khoản
-                    </a>
+                      {loggingOut ? 'Đang thoát...' : 'Đăng xuất'}
+                    </button>
                   </div>
                   <p className="text-[10px] font-medium text-muted uppercase tracking-wider text-left">
                     {session.role}

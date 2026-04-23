@@ -11,6 +11,7 @@ import {
   getPlatformLabel,
   getStateTone,
   truncateMiddle,
+  cleanVideoTitle,
 } from '../utils';
 
 function cn(...inputs: ClassValue[]) {
@@ -104,7 +105,8 @@ export const JobsList = ({
       ) : (
         <div className="space-y-3">
           {jobs.map((job) => {
-            const title = job.videoTitle || job.playlistTitle || job.url;
+            const rawTitle = job.videoTitle || job.playlistTitle || job.url;
+            const title = cleanVideoTitle(rawTitle);
 
             return (
               <button

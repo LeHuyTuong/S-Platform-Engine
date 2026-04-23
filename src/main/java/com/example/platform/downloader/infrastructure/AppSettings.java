@@ -43,6 +43,12 @@ public class AppSettings {
     // Dung lượng tối đa cho phép tải (MB, 0 = vô hạn)
     private final AtomicLong maxFileSizeMb = new AtomicLong(0);
 
+    // Telegram & Drive Settings
+    private String telegramBotToken = "";
+    private String telegramChatId = "";
+    private String googleDriveFolderId = "";
+    private String baseUrl = "http://localhost:8080";
+
     // Getters
     public int getConcurrentFragments() { return concurrentFragments.get(); }
     public int getSleepInterval() { return sleepInterval.get(); }
@@ -57,6 +63,18 @@ public class AppSettings {
     public void setRetries(int v) { retries.set(v); save(); }
     public void setMaxFileSizeMb(long v) { maxFileSizeMb.set(v); save(); }
 
+    public String getTelegramBotToken() { return telegramBotToken; }
+    public void setTelegramBotToken(String v) { this.telegramBotToken = v; save(); }
+
+    public String getTelegramChatId() { return telegramChatId; }
+    public void setTelegramChatId(String v) { this.telegramChatId = v; save(); }
+
+    public String getGoogleDriveFolderId() { return googleDriveFolderId; }
+    public void setGoogleDriveFolderId(String v) { this.googleDriveFolderId = v; save(); }
+
+    public String getBaseUrl() { return baseUrl; }
+    public void setBaseUrl(String v) { this.baseUrl = v; save(); }
+
     private synchronized void save() {
         try {
             File file = new File(settingsPath);
@@ -66,7 +84,11 @@ public class AppSettings {
                 "sleepInterval", sleepInterval.get(),
                 "sleepRequests", sleepRequests.get(),
                 "retries", retries.get(),
-                "maxFileSizeMb", maxFileSizeMb.get()
+                "maxFileSizeMb", maxFileSizeMb.get(),
+                "telegramBotToken", telegramBotToken,
+                "telegramChatId", telegramChatId,
+                "googleDriveFolderId", googleDriveFolderId,
+                "baseUrl", baseUrl
             );
             mapper.writeValue(file, data);
             System.out.println(">>> [AppSettings] Đã lưu cấu hình vào: " + settingsPath);
@@ -87,6 +109,10 @@ public class AppSettings {
                 if (data.containsKey("sleepRequests")) sleepRequests.set(((Number) data.get("sleepRequests")).intValue());
                 if (data.containsKey("retries")) retries.set(((Number) data.get("retries")).intValue());
                 if (data.containsKey("maxFileSizeMb")) maxFileSizeMb.set(((Number) data.get("maxFileSizeMb")).longValue());
+                if (data.containsKey("telegramBotToken")) telegramBotToken = (String) data.get("telegramBotToken");
+                if (data.containsKey("telegramChatId")) telegramChatId = (String) data.get("telegramChatId");
+                if (data.containsKey("googleDriveFolderId")) googleDriveFolderId = (String) data.get("googleDriveFolderId");
+                if (data.containsKey("baseUrl")) baseUrl = (String) data.get("baseUrl");
                 
                 System.out.println(">>> [AppSettings] Tải cấu hình thành công: " + concurrentFragments.get() + "/" + sleepInterval.get());
             } else {

@@ -115,10 +115,7 @@ export const SourceRequestForm = ({ isSubmitting, submitError, onSubmit }: Props
         <div>
           <p className="text-[11px] font-bold tracking-[0.18em] text-primary uppercase">Tạo yêu cầu nguồn</p>
           <h2 className="mt-2 text-2xl font-black tracking-tight text-text">Tạo job từ URL thật</h2>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-muted">
-            Form này gọi trực tiếp backend `/api/v1/source-requests`. Không có dữ liệu giả, không có bước
-            trung gian thừa.
-          </p>
+
         </div>
         <div className="hidden rounded-2xl border border-primary/15 bg-primary/10 p-3 text-primary lg:block">
           <Sparkles size={20} />
@@ -154,17 +151,13 @@ export const SourceRequestForm = ({ isSubmitting, submitError, onSubmit }: Props
               value={form.sourceUrl}
               onChange={(event) => setForm((previous) => ({ ...previous, sourceUrl: event.target.value }))}
             />
-            <p className="text-xs leading-5 text-muted">
-              Chấp nhận URL trực tiếp, playlist hoặc profile. Nếu không chắc, để platform và source type ở chế độ
-              tự động.
-            </p>
+
           </div>
 
           <details className="group rounded-[24px] border border-white/8 bg-black/10">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-text outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-[24px]">
               Tùy chọn tải & Cấu hình nâng cao
-              <div className="flex items-center gap-2 text-xs text-muted group-open:hidden">
-                <span className="hidden sm:inline">Nhấn để mở rộng</span>
+              <div className="flex items-center gap-2 text-xs text-muted">
                 <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
               </div>
               <ChevronDown className="h-4 w-4 hidden group-open:block transition-transform group-open:rotate-180" />
@@ -270,7 +263,7 @@ export const SourceRequestForm = ({ isSubmitting, submitError, onSubmit }: Props
                 </div>
               </div>
 
-              {form.downloadType === 'VIDEO' ? (
+              {form.downloadType === 'VIDEO' && (
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-text" htmlFor="quality">
                     Chất lượng ưu tiên
@@ -288,10 +281,6 @@ export const SourceRequestForm = ({ isSubmitting, submitError, onSubmit }: Props
                       </option>
                     ))}
                   </select>
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-primary/15 bg-primary/10 px-4 py-3 text-sm leading-6 text-primary/90">
-                  Âm thanh luôn gửi `quality=best` theo contract frontend của màn này.
                 </div>
               )}
 
@@ -383,9 +372,7 @@ export const SourceRequestForm = ({ isSubmitting, submitError, onSubmit }: Props
                   />
                   <span>
                     <span className="block text-sm font-semibold text-text">Tải thumbnail</span>
-                    <span className="mt-1 block text-xs leading-5 text-muted">
-                      Ghi nhận ảnh bìa gốc của video nếu nền tảng hỗ trợ.
-                    </span>
+
                   </span>
                 </label>
 
@@ -400,9 +387,7 @@ export const SourceRequestForm = ({ isSubmitting, submitError, onSubmit }: Props
                   />
                   <span>
                     <span className="block text-sm font-semibold text-text">Làm sạch metadata</span>
-                    <span className="mt-1 block text-xs leading-5 text-muted">
-                      Loại bỏ các trường metadata dư thừa khỏi file gốc.
-                    </span>
+
                   </span>
                 </label>
               </div>
@@ -411,9 +396,7 @@ export const SourceRequestForm = ({ isSubmitting, submitError, onSubmit }: Props
         </fieldset>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs leading-5 text-muted">
-            Request thay đổi dữ liệu sẽ tự lấy CSRF token trước khi gọi backend.
-          </p>
+
           <Button className="min-w-[220px]" data-testid="submit-source-request" disabled={isSubmitting} type="submit">
             {isSubmitting ? (
               <>

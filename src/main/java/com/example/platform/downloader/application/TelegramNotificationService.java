@@ -1,6 +1,7 @@
 package com.example.platform.downloader.application;
 
 import com.example.platform.downloader.domain.entity.Job;
+import com.example.platform.downloader.infrastructure.AppSettings;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.platform.modules.user.domain.User;
 import org.slf4j.Logger;
@@ -28,14 +29,17 @@ public class TelegramNotificationService {
     private static final String TELEGRAM_API = "https://api.telegram.org/bot";
 
     private final UserConnectionSettingsService userConnectionSettingsService;
+    private final AppSettings appSettings;
     private final String downloadDir;
     private final String baseUrl;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public TelegramNotificationService(UserConnectionSettingsService userConnectionSettingsService,
+                                       AppSettings appSettings,
                                        @Value("${app.downloader.output-dir:downloads}") String downloadDir,
                                        @Value("${app.base-url:http://localhost:8080}") String baseUrl) {
         this.userConnectionSettingsService = userConnectionSettingsService;
+        this.appSettings = appSettings;
         this.downloadDir = downloadDir;
         this.baseUrl = baseUrl;
     }
@@ -109,16 +113,18 @@ public class TelegramNotificationService {
 
     private String resolveBotToken(User user) {
         if (user == null) {
-            return null;
+            return appSettings.getTelegramBotToken();
         }
-        return userConnectionSettingsService.resolveTelegramBotToken(user);
+        String token = userConnectionSettingsService.resolveTelegramBotToken(user);
+        return (token != null && !token.isBlank()) ? token : appSettings.getTelegramBotToken();
     }
 
     private String resolveChatId(User user) {
         if (user == null) {
-            return null;
+            return appSettings.getTelegramChatId();
         }
-        return userConnectionSettingsService.resolveTelegramChatId(user);
+        String chatId = userConnectionSettingsService.resolveTelegramChatId(user);
+        return (chatId != null && !chatId.isBlank()) ? chatId : appSettings.getTelegramChatId();
     }
 
     private void trySendVideo(String chatId, String title, Job job, List<Map<String, String>> files, String botToken) {

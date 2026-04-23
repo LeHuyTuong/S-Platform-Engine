@@ -32,18 +32,17 @@ interface SidebarProps {
 }
 
 const navigationItems: NavItem[] = [
-  { label: 'Tổng quan', icon: LayoutDashboard, href: '/admin#tong-quan' },
-  { label: 'Công việc', icon: ListOrdered, href: '/admin#jobs' },
-  { label: 'Người dùng', icon: Users, href: '/admin#users' },
-  { label: 'Cài đặt', icon: Settings, href: '/admin#settings' },
-  { label: 'Tác vụ', icon: Wrench, href: '/admin#actions' },
+  { label: 'Tổng quan', icon: LayoutDashboard, href: '/app/admin' },
+  { label: 'Công việc', icon: ListOrdered, href: '/app/admin/jobs' },
+  { label: 'Người dùng', icon: Users, href: '/app/admin/users' },
+  { label: 'Cài đặt', icon: Settings, href: '/app/admin/settings' },
+  { label: 'Tác vụ', icon: Wrench, href: '/app/admin/actions' },
 ];
 
 const SidebarItem: React.FC<{ item: NavItem; isCollapsed: boolean }> = ({ item, isCollapsed }) => {
   const Icon = item.icon;
-  const activeHash = typeof window !== 'undefined' ? window.location.hash : '';
-  const itemHash = item.href.includes('#') ? `#${item.href.split('#')[1]}` : '';
-  const isActive = activeHash ? activeHash === itemHash : itemHash === '#tong-quan';
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+  const isActive = pathname === item.href;
 
   return (
     <a

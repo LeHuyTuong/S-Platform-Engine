@@ -29,6 +29,11 @@ export interface AdminSettings {
   sleepRequests: number;
   retries: number;
   maxFileSizeMb: number;
+  telegramBotToken?: string;
+  telegramChatId?: string;
+  googleDriveServiceAccountJson?: string;
+  googleDriveFolderId?: string;
+  baseUrl?: string;
   diskUsageMb: number;
 }
 
