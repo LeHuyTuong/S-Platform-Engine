@@ -2,10 +2,17 @@ import { useEffect, useState } from 'react';
 import { Download, Menu, X } from 'lucide-react';
 import { Button } from '../common/Button';
 import { Container } from '../common/Container';
+import { useAuthSession } from '../../features/downloader/hooks/useAuthSession';
+import { logout } from '../../api/auth';
 
 export const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { session, loading: sessionLoading } = useAuthSession();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const isAuthenticated = Boolean(session?.authenticated);
+  const isAdmin = session?.role === 'ADMIN';
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -13,6 +20,17 @@ export const Header = () => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    try {
+      await logout();
+    } catch {
+      // ignore
+    } finally {
+      window.location.assign('/');
+    }
+  }
 
   const navLinks = [
     { label: 'Tính năng', href: '#features' },
@@ -50,14 +68,46 @@ export const Header = () => {
               {link.label}
             </a>
           ))}
+          {isAdmin && (
+            <a
+              href="/app/admin"
+              className="text-sm font-extrabold text-primary transition-colors hover:text-primary-light"
+            >
+              Admin Dashboard
+            </a>
+          )}
         </nav>
 
         <div className="hidden items-center gap-4 md:flex">
-          <Button variant="ghost" size="sm" href="/login">
-            Đăng nhập
-          </Button>
+          {!sessionLoading && (
+            <>
+              {!isAuthenticated ? (
+                <Button variant="ghost" size="sm" href="/login">
+                  Đăng nhập
+                </Button>
+              ) : (
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <p className="text-xs font-bold text-text">{session?.email}</p>
+                    <button
+                      onClick={() => void handleLogout()}
+                      disabled={loggingOut}
+                      className="text-[10px] font-bold text-primary hover:underline uppercase tracking-tight"
+                    >
+                      {loggingOut ? 'Đang thoát...' : 'Đăng xuất'}
+                    </button>
+                  </div>
+                  <div className="h-8 w-8 rounded-full border border-white/10 bg-white/5 p-0.5">
+                    <div className="flex h-full w-full items-center justify-center rounded-full bg-primary/20 text-primary text-xs font-bold">
+                      {session?.email?.[0].toUpperCase()}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
           <Button size="sm" href="/app/downloader">
-            Bắt đầu ngay
+            {isAuthenticated ? 'Vào bàn làm việc' : 'Bắt đầu ngay'}
           </Button>
         </div>
 

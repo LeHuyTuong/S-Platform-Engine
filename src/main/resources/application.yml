@@ -42,6 +42,9 @@ app:
     output-dir: downloads
     yt-dlp-path: bin/yt-dlp.exe
     ffmpeg-path: bin/ffmpeg.exe
+  ui:
+    admin-url: http://localhost:5173/app/admin
+    downloader-url: http://localhost:5173/app/downloader
   security:
     master-key: ${APP_MASTER_KEY:dev-master-key-change-me}
   worker:

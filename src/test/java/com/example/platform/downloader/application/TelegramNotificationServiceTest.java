@@ -1,6 +1,7 @@
 package com.example.platform.downloader.application;
 
 import com.example.platform.downloader.domain.entity.Job;
+import com.example.platform.downloader.infrastructure.AppSettings;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
@@ -14,6 +15,7 @@ class TelegramNotificationServiceTest {
     void resolveVideoPathUsesJobDownloadPathWhenPresent() {
         TelegramNotificationService service = new TelegramNotificationService(
                 mock(UserConnectionSettingsService.class),
+                mock(AppSettings.class),
                 "downloads",
                 "http://localhost:8080"
         );
@@ -30,6 +32,7 @@ class TelegramNotificationServiceTest {
     void resolveVideoPathFallsBackToJobIdFolder() {
         TelegramNotificationService service = new TelegramNotificationService(
                 mock(UserConnectionSettingsService.class),
+                mock(AppSettings.class),
                 "downloads",
                 "http://localhost:8080"
         );

@@ -11,6 +11,7 @@ services:
       - SPRING_DATASOURCE_PASSWORD=root
       - SPRING_DATA_REDIS_HOST=platform_redis
       - APP_UI_DOWNLOADER_URL=http://localhost:5173/app/downloader
+      - APP_UI_ADMIN_URL=http://localhost:5173/app/admin
       - APP_DOWNLOADER_OUTPUT_DIR=/app/downloads
       - APP_WORKER_ENABLED=false
     volumes:

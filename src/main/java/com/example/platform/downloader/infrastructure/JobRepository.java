@@ -28,6 +28,7 @@ public interface JobRepository extends JpaRepository<Job, String> {
     @Query(value = """
             select j from Job j
             left join fetch j.sourceRequest
+            left join fetch j.user
             where (:userId is null or j.user.id = :userId)
               and (:state is null or j.state = :state)
               and (:status is null or j.status = :status)

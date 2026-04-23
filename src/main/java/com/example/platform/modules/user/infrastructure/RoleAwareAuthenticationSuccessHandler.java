@@ -7,12 +7,15 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.web.RedirectStrategy;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.DefaultRedirectStrategy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 
 public class RoleAwareAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(RoleAwareAuthenticationSuccessHandler.class);
     private final String adminUiUrl;
     private final String downloaderUiUrl;
     private final RedirectStrategy redirectStrategy = new DefaultRedirectStrategy();
@@ -26,7 +29,9 @@ public class RoleAwareAuthenticationSuccessHandler implements AuthenticationSucc
     public void onAuthenticationSuccess(HttpServletRequest request,
                                         HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
-        redirectStrategy.sendRedirect(request, response, determineTargetUrl(authentication));
+        String targetUrl = determineTargetUrl(authentication);
+        log.info("[Auth] Success! Redirecting user={} to {}", authentication.getName(), targetUrl);
+        redirectStrategy.sendRedirect(request, response, targetUrl);
     }
 
     private String determineTargetUrl(Authentication authentication) {
@@ -37,13 +42,13 @@ public class RoleAwareAuthenticationSuccessHandler implements AuthenticationSucc
             if (StringUtils.hasText(adminUiUrl)) {
                 return adminUiUrl;
             }
-            return "/admin";
+            return "/app/admin";
         }
 
         if (StringUtils.hasText(downloaderUiUrl)) {
             return downloaderUiUrl;
         }
 
-        return "/downloader";
+        return "/app/downloader";
     }
 }
